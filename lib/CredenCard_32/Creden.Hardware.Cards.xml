@@ -1,0 +1,160 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        "CredenCards"
+    </assembly>
+    <members>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.ReadAnalog(System.Byte,System.Byte@)">
+            <summary>
+Reads the specified Analog Channel value on the remote card.
+</summary>
+            <param name="channel">
+Specifies the channel on the remote card.
+Valid channels: 0, 1, 2, and 3.
+</param>
+            <param name="value">
+A reference byte storage location for the received data.
+Byte value (0 - 255).
+</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.WriteAnalog(System.Byte,System.Byte)">
+            <summary>
+Sets the specified Analog Channel value on the remote card.
+Returns CardStatus.PortReadOnly if an Input Port ID is specified.
+</summary>
+            <param name="channel">
+Specifies the channel on the remote card.
+Valid channels: 0, 1, 2, and 3.
+</param>
+            <param name="value">Byte value (0 - 255).</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.ReadPort(System.Byte,System.Byte@)">
+            <summary>
+Reads the specified Input/Output Port value on the remote card.
+</summary>
+            <param name="portId">
+Specifies the Port ID on the remote card.
+Valid Input / Output Ports ID: 0, 1, 2, and 3.
+</param>
+            <param name="value">
+A reference byte storage location for the received data.
+Value of 8 bits. (Number value 0 for LOW or value &gt;= 1 for HIGH.)
+</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.WritePort(System.Byte,System.Byte)">
+            <summary>
+Sets the specified Output Port value on the remote card.
+Returns CardStatus.PortReadOnly if an Input Port ID is specified.
+</summary>
+            <param name="portId">
+Specifies the Port ID on the remote card.
+Valid Output Ports ID: 2 and 3.
+</param>
+            <param name="value">Value of 8 bits. (Number value 0 for LOW or value &gt;= 1 for HIGH.)</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.SetLed(System.Byte,System.Byte)">
+            <summary>
+Sets the LED value on the remote card.
+</summary>
+            <param name="led">
+Specifies the LED number on the remote card.
+A specified value of 0 will control all LEDs on the card.
+</param>
+            <param name="value">Number value 0 for LOW or value &gt;= 1 for HIGH.</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.GetDeviceAddress(System.Byte@)">
+            <summary>
+Returns the current remote card Device Address.
+</summary>
+            <param name="deviceAddress">A reference byte storage location for the received data.</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.GetFirmwareVersion(System.String@,System.Byte)">
+            <summary>
+Returns the current remote card Firmware Version.
+</summary>
+            <param name="result">A reference string storage location for the received data.</param>
+            <param name="bufferSize">Specifies the array size of the type char* storage location.</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.GetDeviceInfo(System.String@,System.Byte)">
+            <summary>
+Returns the current remote card Device Information.
+</summary>
+            <param name="result">A reference string storage location for the received data.</param>
+            <param name="bufferSize">Specifies the array size of the type char* storage location.</param>
+            <returns>
+Returns the CardStatus value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.GetConnectionType">
+            <summary>
+Returns the current remote card ConnectType value.
+</summary>
+            <returns>
+Returns the ConnectType value.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.Close">
+            <summary>
+Closes the IO1616Card connection and releases all associated resources.
+</summary>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.ConnectRS485(System.Byte,System.String)">
+            <summary>
+Establishes an RS485 connection to a remote IO1616 card.
+</summary>
+            <param name="address">An address that represents the remote card.</param>
+            <param name="portName">The port to use (for example, COM1).</param>
+            <returns>
+Returns true if the connection to the remote card is completed.
+Returns false if the connection to the remote card fails.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.ConnectUSB(System.Byte)">
+            <summary>
+Establishes a USB connection to a remote IO1616 card.
+</summary>
+            <param name="address">An address that represents the remote card.</param>
+            <returns>
+Returns true if the connection to the remote card is completed.
+Returns false if the connection to the remote card fails.
+</returns>
+        </member>
+        <member name="M:Creden.Hardware.Cards.IO1616Card.#ctor">
+            <summary>
+Initializes a new instance of the IO1616Card class.
+</summary>
+        </member>
+        <member name="T:Creden.Hardware.Cards.CardStatus">
+            <summary>
+Represents the operation status of any Creden.Hardware.Cards commands.
+</summary>
+        </member>
+        <member name="T:Creden.Hardware.Cards.ConnectionType">
+            <summary>
+Specifies the type of connection that an instance of any Creden.Hardware.Cards
+classes represents.
+</summary>
+        </member>
+    </members>
+</doc>

@@ -1,0 +1,41 @@
+﻿<Window x:Class="WPF_CardTest.Views.WaferMapTeachingView"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPF_CardTest.Views"
+        mc:Ignorable="d"
+        Title="WaferMapTeachingView" Height="450" Width="800">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="Wafer Map Teaching Results" 
+                   FontSize="18" FontWeight="Bold" Margin="0,0,0,10"/>
+
+        <!-- Data Grid -->
+        <DataGrid Grid.Row="1" x:Name="TeachingGrid" AutoGenerateColumns="False"
+                  IsReadOnly="True" Margin="0,10" SelectionChanged="TeachingGrid_SelectionChanged">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Slot #" Binding="{Binding SlotNumber}" Width="60"/>
+                <DataGridTextColumn Header="Position (Pulses)" Binding="{Binding Position}" Width="120"/>
+                <DataGridTextColumn Header="Boundary Start" Binding="{Binding BoundaryStart}" Width="120"/>
+                <DataGridTextColumn Header="Boundary End" Binding="{Binding BoundaryEnd}" Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <!-- Summary Info -->
+        <StackPanel Grid.Row="2">
+            <TextBlock Text="Summary:" FontWeight="Bold"/>
+            <TextBlock x:Name="txtFirstSlotRef" Text="First Slot Reference: 0"/>
+            <TextBlock x:Name="txtAvgPitch" Text="Average Pitch: 0"/>
+            <TextBlock x:Name="txtSlotCount" Text="Slot Count: 0"/>
+            <Button Content="Close" HorizontalAlignment="Right" Width="80" 
+                    Margin="0,10,0,0" Click="CloseButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

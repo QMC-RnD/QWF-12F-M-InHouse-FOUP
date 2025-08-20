@@ -1,0 +1,238 @@
+ImageRuntimeVersion: v4.0.30319
+Assembly Creden.Hardware64.Cards, Version=1.0.*, Culture=Invariant Language (Invariant Country): 
+	hash=SHA1, flags=PublicKey
+Assembly mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089: 
+	hash=None, flags=None
+Assembly System.Data, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089: 
+	hash=None, flags=None
+Assembly System, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089: 
+	hash=None, flags=None
+Assembly System.Xml, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089: 
+	hash=None, flags=None
+Interface Creden.Hardware.Cards.IAX0040Card: AutoLayout, AnsiClass, Class, Public, ClassSemanticsMask, Abstract, BeforeFieldInit
+  Methods:
+    ConnectUSB(Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    ConnectRS485(Byte, String): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    Close(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetConnectionType(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetDeviceInfo(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetFirmwareVersion(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetDeviceAddress(Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetLed(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetSoftwareLimit(Byte, Int32 IsLong, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetSoftwareLimit(Byte, Int32&, Int32&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    EnableSoftwareLimit(Byte, Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    IsSoftwareLimitEnabled(Byte, Byte&, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetAbsPosition(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetAbsPosition(Byte, Int32&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetAxisStatus(Byte, UInt16&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetMovementParameter(Byte, UInt32 IsLong, UInt32 IsLong, UInt16, UInt16, UInt16, UInt16): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetMovementParameter(Byte, UInt32&, UInt32&, UInt16&, UInt16&, UInt16&, UInt16&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    Move(Byte, SByte IsSignUnspecifiedByte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MoveAbs(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MoveRelative(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    Stop(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    ChangePosition(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    ChangeSpeed(Byte, UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetHomeReturnMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetHomeReturnMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetHomeReturnEZCount(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetHomeReturnEZCount(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    StartHomeReturn(Byte, SByte IsSignUnspecifiedByte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    StartHomeSearch(Byte, SByte IsSignUnspecifiedByte, UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MultiStartMove(Byte, Byte[], SByte[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MultiStartMoveAbs(Byte, Byte[], Int32[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MultiStartMoveRel(Byte, Byte[], Int32[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MultiStopMove(Byte, Byte[], Byte[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MultiStartHomeReturn(Byte, Byte[], SByte[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    MultiStartHomeSearch(Byte, Byte[], SByte[], UInt32[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    CancelMultiStart(Byte, Byte[]): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    CancelMultiStop(Byte, Byte[]): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    STATrigger(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    STPTrigger(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    EmergencyStop(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    LinearStartMove(Byte, Byte[], Int32[], UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    LinearStartMoveAbs(Byte, Byte[], Int32[], UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    LinearStartMoveRel(Byte, Byte[], Int32[], UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetPulseOutputMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetPulseOutputMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetPulseInputMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetPulseInputMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetFeedbackPosSrc(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetFeedbackPosSrc(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetOrgSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetOrgSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetOrgState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetEZSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetEZSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetEZState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetSDSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetSDSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    EnableSD(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    IsSDEnable(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetSDMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetSDMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetSDState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetELState(Byte, Byte&, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetAlarmSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetAlmSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetAlmMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetAlmState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetAlmMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetInpSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetInpSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    EnableInp(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    IsInpEnable(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetInpState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    EnableErc(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    IsErcEnable(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetErcState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetSVONState(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetSVONState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetRDYState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetIoState(Byte, UInt16&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+Class Creden.Hardware.Cards.AX0040Card: AutoLayout, AnsiClass, Class, Public, BeforeFieldInit
+    Void .ctor(): PrivateScope, Public, HideBySig, SpecialName, RTSpecialName
+  Interfaces:
+    Creden.Hardware.Cards.IAX0040Card
+    System.IDisposable
+  Methods:
+    ConnectUSB(Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    ConnectRS485(Byte, String): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    Close(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetConnectionType(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetDeviceInfo(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetFirmwareVersion(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetDeviceAddress(Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetLed(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetSoftwareLimit(Byte, Int32 IsLong, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetSoftwareLimit(Byte, Int32&, Int32&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    EnableSoftwareLimit(Byte, Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    IsSoftwareLimitEnabled(Byte, Byte&, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetAbsPosition(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetAbsPosition(Byte, Int32&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetAxisStatus(Byte, UInt16&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetMovementParameter(Byte, UInt32 IsLong, UInt32 IsLong, UInt16, UInt16, UInt16, UInt16): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetMovementParameter(Byte, UInt32&, UInt32&, UInt16&, UInt16&, UInt16&, UInt16&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    Move(Byte, SByte IsSignUnspecifiedByte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MoveAbs(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MoveRelative(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    Stop(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    ChangePosition(Byte, Int32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    ChangeSpeed(Byte, UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetHomeReturnMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetHomeReturnMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetHomeReturnEZCount(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetHomeReturnEZCount(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    StartHomeReturn(Byte, SByte IsSignUnspecifiedByte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    StartHomeSearch(Byte, SByte IsSignUnspecifiedByte, UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MultiStartMove(Byte, Byte[], SByte[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MultiStartMoveAbs(Byte, Byte[], Int32[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MultiStartMoveRel(Byte, Byte[], Int32[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MultiStopMove(Byte, Byte[], Byte[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MultiStartHomeReturn(Byte, Byte[], SByte[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    MultiStartHomeSearch(Byte, Byte[], SByte[], UInt32[], Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    CancelMultiStart(Byte, Byte[]): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    CancelMultiStop(Byte, Byte[]): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    STATrigger(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    STPTrigger(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    EmergencyStop(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    LinearStartMove(Byte, Byte[], Int32[], UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    LinearStartMoveAbs(Byte, Byte[], Int32[], UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    LinearStartMoveRel(Byte, Byte[], Int32[], UInt32 IsLong): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetPulseOutputMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetPulseOutputMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetPulseInputMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetPulseInputMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetFeedbackPosSrc(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetFeedbackPosSrc(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetOrgSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetOrgSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetOrgState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetEZSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetEZSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetEZState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetSDSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetSDSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    EnableSD(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    IsSDEnable(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetSDMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetSDMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetSDState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetELState(Byte, Byte&, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetAlarmSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetAlmSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetAlmMode(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetAlmMode(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetAlmState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetInpSignalLogic(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetInpSignalLogic(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    EnableInp(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    IsInpEnable(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetInpState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    EnableErc(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    IsErcEnable(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetErcState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetSVONState(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetSVONState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetRDYState(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetIoState(Byte, UInt16&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    Dispose(): PrivateScope, Public, Final, Virtual, HideBySig
+Struct Creden.Hardware.Cards.ConnectionType: AutoLayout, AnsiClass, Class, Public, Sealed, BeforeFieldInit
+  :System.Enum
+  Fields:
+    Int32 value__ : Public, SpecialName, RTSpecialName
+    Creden.Hardware.Cards.ConnectionType Unknown = 0 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.ConnectionType USB = 1 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.ConnectionType RS485 = 2 : Public, Static, Literal, HasDefault
+Struct Creden.Hardware.Cards.CardStatus: AutoLayout, AnsiClass, Class, Public, Sealed, BeforeFieldInit
+  :System.Enum
+  Fields:
+    Int32 value__ : Public, SpecialName, RTSpecialName
+    Creden.Hardware.Cards.CardStatus Pending = 1 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus Successful = 0 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus Unsuccessful = -1 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus InvalidParameter = -2 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus LinkError = -3 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus AxisNotFound = -101 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus AxisParamError = -102 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus RS485_IO_Busy = -208 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus CommandParameterRangeError = -301 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus CommandNotFound = -303 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus USB_IO_Busy = -401 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus PortNotFound = -501 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus PortReadOnly = -502 : Public, Static, Literal, HasDefault
+    Creden.Hardware.Cards.CardStatus ChannelNotFound = -503 : Public, Static, Literal, HasDefault
+Interface Creden.Hardware.Cards.IIO1616Card: AutoLayout, AnsiClass, Class, Public, ClassSemanticsMask, Abstract, BeforeFieldInit
+  Methods:
+    ConnectUSB(Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    ConnectRS485(Byte, String): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    Close(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetConnectionType(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetDeviceInfo(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetFirmwareVersion(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    GetDeviceAddress(Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    SetLed(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    WritePort(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    ReadPort(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    WriteAnalog(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+    ReadAnalog(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask, Abstract
+Class Creden.Hardware.Cards.IO1616Card: AutoLayout, AnsiClass, Class, Public, BeforeFieldInit
+    Void .ctor(): PrivateScope, Public, HideBySig, SpecialName, RTSpecialName
+  Interfaces:
+    Creden.Hardware.Cards.IIO1616Card
+    System.IDisposable
+  Methods:
+    ConnectUSB(Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    ConnectRS485(Byte, String): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    Close(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetConnectionType(): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetDeviceInfo(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetFirmwareVersion(String&, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    GetDeviceAddress(Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    SetLed(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    WritePort(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    ReadPort(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    WriteAnalog(Byte, Byte): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    ReadAnalog(Byte, Byte&): PrivateScope, Public, Virtual, HideBySig, VtableLayoutMask
+    Dispose(): PrivateScope, Public, Final, Virtual, HideBySig

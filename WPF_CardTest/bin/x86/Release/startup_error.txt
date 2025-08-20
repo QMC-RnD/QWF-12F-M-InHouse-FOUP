@@ -1,0 +1,20 @@
+System.BadImageFormatException: Could not load file or assembly 'FOUPCtrl, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null' or one of its dependencies. An attempt was made to load a program with an incorrect format.
+File name: 'FOUPCtrl, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null'
+   at WPF_CardTest.App.Application_Startup(Object sender, StartupEventArgs e)
+   at System.Windows.Application.OnStartup(StartupEventArgs e)
+   at WPF_CardTest.App.OnStartup(StartupEventArgs e) in C:\Users\adrain.lim\source\repos\WPF_CardTest\WPF_CardTest\App.xaml.cs:line 61
+
+=== Pre-bind state information ===
+LOG: DisplayName = FOUPCtrl, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null
+ (Fully-specified)
+LOG: Appbase = file:///C:/Users/adrain.lim/source/repos/WPF_CardTest/WPF_CardTest/bin/x86/Release/
+LOG: Initial PrivatePath = NULL
+Calling assembly : QWF-12F-M, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null.
+===
+LOG: This bind starts in default load context.
+LOG: Using application configuration file: C:\Users\adrain.lim\source\repos\WPF_CardTest\WPF_CardTest\bin\x86\Release\QWF-12F-M.exe.Config
+LOG: Using host configuration file: 
+LOG: Using machine configuration file from C:\Windows\Microsoft.NET\Framework\v4.0.30319\config\machine.config.
+LOG: Policy not being applied to reference at this time (private, custom, partial, or location-based assembly bind).
+LOG: Attempting download of new URL file:///C:/Users/adrain.lim/source/repos/WPF_CardTest/WPF_CardTest/bin/x86/Release/FOUPCtrl.DLL.
+ERR: Failed to complete setup of assembly (hr = 0x8007000b). Probing terminated.

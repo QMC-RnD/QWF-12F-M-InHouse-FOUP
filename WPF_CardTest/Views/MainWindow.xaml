@@ -1,0 +1,1286 @@
+﻿<Window x:Class="WPF_CardTest.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:WPF_CardTest"
+        xmlns:vm="clr-namespace:WPF_CardTest.ViewModels"
+        xmlns:converters="clr-namespace:QWF_12F_M.Converters"
+        mc:Ignorable="d"
+        d:DataContext="{d:DesignInstance vm:MainViewModel}"
+        Title="FOUP Control" Height="700" Width="900">
+
+    <Window.Resources>
+        <converters:BooleanToColorConverter x:Key="BoolToColorConverter"/>
+    </Window.Resources>
+
+    <Window.DataContext>
+        <vm:MainViewModel />
+    </Window.DataContext>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="291*"/>
+            <ColumnDefinition Width="45*"/>
+            <ColumnDefinition Width="64*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="95*"/>
+            <RowDefinition Height="3*"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="10*"/>
+                <ColumnDefinition Width="10*"/>
+                <ColumnDefinition Width="10*"/>
+                <ColumnDefinition Width="70*"/>
+
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" Text="{Binding ConnectionIndication}" IsReadOnly="True"/>
+            <TextBox Grid.Column="1" Text="{Binding CurrentComPort}" IsReadOnly="True"/>
+
+        </Grid>
+        <!--#region -->
+        <Grid Grid.Row="0" Grid.ColumnSpan="3">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="8*"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+            <!--Left bar-->
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- All status fields in a StackPanel in Row 0 -->
+                <StackPanel Grid.Row="0">
+                    <TextBlock>STATUS</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceStatus}"/>
+
+                    <TextBlock>ELEVATOR</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceElevator}"/>
+
+                    <TextBlock>MAPPING</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceMapping}"/>
+
+                    <TextBlock>PROCESS</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceProcess}"/>
+
+                    <TextBlock>CASSETTE</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceCassette}"/>
+
+                    <TextBlock>MODE</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceMode}"/>
+
+                    <TextBlock>POSITION(um)</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DevicePosition}"/>
+
+                    <TextBlock>ORIGIN</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceOrigin}"/>
+
+                    <TextBlock>VERSION</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceVersion}"/>
+
+                    <TextBlock>CYCLE TIME</TextBlock>
+                    <Border BorderBrush="Gray" BorderThickness="1"/>
+                    <TextBox IsReadOnly="True" Text="{Binding DeviceCycleTime}"/>
+                </StackPanel>
+
+                <!-- Setup button always at the bottom -->
+                <Button Grid.Row="1" Background="Linen" Margin="0,8,0,0" Content="Setup" Command="{Binding SetupCommand}" HorizontalAlignment="Stretch"/>
+            </Grid>
+            <!--Middle Column-->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition/>
+                    <RowDefinition Height="0*"/>
+                </Grid.RowDefinitions>
+                <TabControl>
+                    <!-- OPERATION CONTROLS-->
+                    <TabItem Header="OPERATION">
+                        <Grid Margin="5">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <!-- For Mode select -->
+                                <RowDefinition Height="Auto"/>
+                                <!-- For Type select -->
+                                <RowDefinition Height="*"/>
+                                <!-- For Move Command TabControl -->
+                            </Grid.RowDefinitions>
+
+                            <!-- Mode Selector -->
+                            <GroupBox Grid.Row="0" Header="Mode select" Margin="5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Margin="5" Command="{Binding ModeAutoCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="AUTO"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Margin="5" Command="{Binding ModeTeachCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="TEACH"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Margin="5" Command="{Binding ModeMaintCommand}">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="MAINTE"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Type Selector -->
+                            <GroupBox Grid.Row="1" Header="Type select" Margin="5">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="btnType1" Margin="5" Command="{Binding Type1Command}" Tag="1">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="BorderBrush" Value="Gray"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTypeIndex}" Value="1">
+                                                        <Setter Property="BorderBrush" Value="Blue"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="TYPE1"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="btnType2" Margin="5" Command="{Binding Type2Command}" Tag="2">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="BorderBrush" Value="Gray"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTypeIndex}" Value="2">
+                                                        <Setter Property="BorderBrush" Value="Blue"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="TYPE2"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="btnType3" Margin="5" Command="{Binding Type3Command}" Tag="3">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="BorderBrush" Value="Gray"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTypeIndex}" Value="3">
+                                                        <Setter Property="BorderBrush" Value="Blue"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="TYPE3"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="btnType4" Margin="5" Command="{Binding Type4Command}" Tag="4">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="BorderBrush" Value="Gray"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTypeIndex}" Value="4">
+                                                        <Setter Property="BorderBrush" Value="Blue"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="TYPE4"/>
+                                        </StackPanel>
+                                    </Button>
+                                    <Button x:Name="btnType5" Margin="5" Command="{Binding Type5Command}" Tag="5">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="BorderBrush" Value="Gray"/>
+                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTypeIndex}" Value="5">
+                                                        <Setter Property="BorderBrush" Value="Blue"/>
+                                                        <Setter Property="BorderThickness" Value="2"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border Width="15" Height="15" Background="Green" Margin="0,0,5,0"/>
+                                            <TextBlock Text="TYPE5"/>
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </GroupBox>
+
+                            <!-- Move Command TabControl -->
+                            <GroupBox Grid.Row="2" Header="Move Command" Margin="5">
+                                <TabControl>
+                                    <!-- Simple Motion Tab -->
+                                    <TabItem Header="Simple motion">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Normal Unit Controls -->
+                                            <GroupBox Grid.Column="0" Header="Normal unit" Margin="5">
+                                                <StackPanel>
+                                                    <GroupBox Header="Clamp">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Unclamp" Command="{Binding UnclampCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="←" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="Clamp" Command="{Binding ClampCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+
+                                                    <GroupBox Header="Nozzle">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Command="{Binding}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="↑" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Command="{Binding}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="↓" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+
+                                                    <GroupBox Header="Valve">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Off" Margin="5" BorderBrush="DarkGray" Command="{Binding}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="On" Margin="5" BorderBrush="DarkGray" Command="{Binding}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+
+                                                    <GroupBox Header="Dock">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Backward" Command="{Binding DockBackwardCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="←" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="Forward" Command="{Binding DockForwardCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+                                                </StackPanel>
+                                            </GroupBox>
+
+                                            <!-- Door Unit Controls -->
+                                            <GroupBox Grid.Column="1" Header="Door unit" Margin="5">
+                                                <StackPanel>
+                                                    <GroupBox Header="Vacuum">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Off" Margin="5" BorderBrush="DarkGray" Command="{Binding VacuumOffCommand}" >
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="←" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="On" Margin="5" BorderBrush="DarkGray" Command="{Binding VacuumOnCommand}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+
+                                                    <GroupBox Header="latch">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Unlatch" Margin="5" BorderBrush="DarkGray" Command="{Binding UnlatchCommand}" IsEnabled="{Binding UnlatchCommand.CanExecute}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="←" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="Latch" Margin="5" BorderBrush="DarkGray" Command="{Binding LatchCommand}" IsEnabled="{Binding LatchCommand.CanExecute}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+
+                                                    <GroupBox Header="Opens and shuts">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="" Margin="5" BorderBrush="DarkGray" Command="{Binding DoorBackwardCommand}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="←" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="Close"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="" Margin="5" BorderBrush="DarkGray" Command="{Binding DoorForwardCommand}">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="Open"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+                                                    <GroupBox Header="Offline Mapping">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Train" Command="{Binding TrainFromCsvCommand}" Margin="5,5,5,5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock  FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="OFF M" Command="{Binding MappingOfflineCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+                                                    <GroupBox Header="Real Time Mapping">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="R Train" Command="{Binding TrainFromLiveDataCommand}" Margin="5,5,5,0" BorderBrush="DarkGray" Height="20" VerticalAlignment="Top">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="R Map" Command="{Binding TestCRC16Command}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+                                                </StackPanel>
+                                            </GroupBox>
+
+                                            <!-- Mapping Unit Controls -->
+                                            <GroupBox Grid.Column="2" Header="Mapping unit" Margin="5">
+                                                <StackPanel>
+                                                    <GroupBox Header="Mapping">
+                                                        <Grid Margin="5">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Backward" Command="{Binding MappingBackwardCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="←" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="Retract"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                            <Button Grid.Column="1" Content="Forward" Command="{Binding MappingForwardCommand}" Margin="5" BorderBrush="DarkGray">
+                                                                <Button.ContentTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                            <TextBlock Text="Extend"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </Button.ContentTemplate>
+                                                            </Button>
+                                                        </Grid>
+                                                    </GroupBox>
+                                                    <GroupBox Header="Z axis position">
+                                                        <StackPanel Margin="5">
+                                                            <!-- Door position -->
+                                                            <Button Margin="5" Command="{Binding ElevatorUpCommand}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="↑" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                    <TextBlock Text="Door"/>
+                                                                </StackPanel>
+                                                            </Button>
+
+                                                            <!-- Mapping Start -->
+                                                            <Button Margin="5" Command="{Binding}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                    <TextBlock Text="Mapping Start"/>
+                                                                </StackPanel>
+                                                            </Button>
+
+                                                            <!-- Mapping End -->
+                                                            <Button Margin="5" Command="{Binding}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                    <TextBlock Text="Mapping End"/>
+                                                                </StackPanel>
+                                                            </Button>
+
+                                                            <!-- Load position -->
+                                                            <Button Margin="5" Command="{Binding ElevatorDownCommand}">
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <TextBlock Text="↓" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                    <TextBlock Text="Load"/>
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </GroupBox>
+                                                </StackPanel>
+                                            </GroupBox>
+                                        </Grid>
+                                    </TabItem>
+
+                                    <!-- Compound Motion Tab -->
+                                    <TabItem Header="Compound motion">
+                                        <!-- Existing compound motion content -->
+                                        <!-- (Keeping your existing compound motion tab content) -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="53*"/>
+                                                <ColumnDefinition Width="503*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- Sequence Execution -->
+                                            <!-- Sequence Execution -->
+                                            <GroupBox Grid.Row="0" Header="Sequence execution" Margin="5,5,5,5" Grid.ColumnSpan="2">
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
+
+                                                    <!-- First row - ComboBox only (remove Execute button) -->
+                                                    <Grid Grid.Row="0">
+                                                        <ComboBox Margin="5" ItemsSource="{Binding MotionList}" SelectedItem="{Binding Motion}"/>
+                                                    </Grid>
+
+                                                    <!-- Second row - Start and Origin buttons side by side -->
+                                                    <Grid Grid.Row="1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Button Grid.Column="0" Content="Start" Margin="5" Command="{Binding StartMotionCommand}">
+                                                            <Button.ContentTemplate>
+                                                                <DataTemplate>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="▶▶" Foreground="Green" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                        <TextBlock Text="{Binding}"/>
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </Button.ContentTemplate>
+                                                        </Button>
+
+                                                        <Button Grid.Column="1" Content="Origin" Margin="5" Command="{Binding OriginCommand}">
+                                                            <Button.ContentTemplate>
+                                                                <DataTemplate>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="⌂" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                        <TextBlock Text="{Binding}"/>
+                                                                    </StackPanel>
+                                                                </DataTemplate>
+                                                            </Button.ContentTemplate>
+                                                        </Button>
+                                                    </Grid>
+                                                </Grid>
+                                            </GroupBox>
+
+
+                                            <!-- Rest of compound motion content -->
+                                            <!-- Aging Motion section and control buttons -->
+                                            <!-- Keeping existing content -->
+                                        </Grid>
+                                    </TabItem>
+
+                                    <!-- LED Tab -->
+                                    <TabItem Header="LED">
+                                        <!-- Existing LED content -->
+                                        <!-- (Keeping your existing LED tab content) -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <GroupBox Grid.Column="0" Header="LED motion" Margin="5">
+                                                <StackPanel>
+                                                    <RadioButton Content="Presence" Margin="5,10,5,5"/>
+                                                    <RadioButton Content="Placement" Margin="5"/>
+                                                    <RadioButton Content="Status 1" Margin="5"/>
+                                                    <RadioButton Content="Status 2" Margin="5"/>
+                                                    <RadioButton Content="Status 3" Margin="5"/>
+                                                    <RadioButton Content="Status 4" Margin="5"/>
+                                                    <RadioButton Content="Load" Margin="5"/>
+                                                    <RadioButton Content="Unload" Margin="5"/>
+                                                    <RadioButton Content="Alarm" Margin="5"/>
+                                                    <RadioButton Content="Manual SW 1" Margin="5"/>
+                                                    <RadioButton Content="Manual SW 2" Margin="5"/>
+                                                </StackPanel>
+                                            </GroupBox>
+
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <Button Content="On" Width="80" Height="30" Margin="5"/>
+                                                <Button Content="Blink" Width="80" Height="30" Margin="5"/>
+                                                <Button Content="Off" Width="80" Height="30" Margin="5"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </TabItem>
+                                </TabControl>
+                            </GroupBox>
+                        </Grid>
+                    </TabItem>
+                    <!--Operation controls end-->
+
+                    <!-- MONITOR SECTION-->
+                    <TabItem Header="MONITOR">
+                        <TabControl>
+                            <!--Status tab-->
+                            <TabItem Header="Status">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="6*"/>
+                                        <ColumnDefinition Width="4*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!--Status left side-->
+                                    <Grid Grid.Column="0">
+                                        <Grid Margin="5">
+                                            <Grid Grid.Column="0">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                    <RowDefinition Height="20"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition/>
+                                                    <ColumnDefinition/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBox Grid.Row="0" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Item"/>
+                                                <TextBox Grid.Row="1" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Status"/>
+                                                <TextBox Grid.Row="2" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Mode"/>
+                                                <TextBox Grid.Row="3" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Home"/>
+                                                <TextBox Grid.Row="4" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Operation"/>
+                                                <TextBox Grid.Row="5" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Pod"/>
+                                                <TextBox Grid.Row="6" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Clamp"></TextBox>
+                                                <TextBox Grid.Row="7" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Latch"/>
+                                                <TextBox Grid.Row="8" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Elevator"></TextBox>
+                                                <TextBox Grid.Row="9" Grid.Column="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Mapping status"/>
+
+                                                <TextBox Grid.Row="0" Grid.Column="1" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False" Text="Status"/>
+                                                <TextBox Grid.Row="1" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False" Text="{Binding Status}"/>
+                                                <TextBox Grid.Row="2" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="3" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="4" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="5" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="6" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="7" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="8" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                                <TextBox Grid.Row="9" Grid.Column="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Grid>
+                                    <Grid Grid.Column="1" Margin="5">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="3*"/>
+                                            <RowDefinition Height="1*"/>
+                                            <RowDefinition Height="3*"/>
+                                        </Grid.RowDefinitions>
+                                        <!--Error log-->
+                                        <Grid Grid.Row="0">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="15"/>
+                                                <RowDefinition Height="150"/>
+                                            </Grid.RowDefinitions>
+                                            <TextBox Grid.Row="0" BorderBrush="Black" VerticalContentAlignment="Center" IsEnabled="False">Error</TextBox>
+                                            <TextBox Grid.Row="1" BorderBrush="Gray" VerticalContentAlignment="Center" IsEnabled="False"></TextBox>
+                                        </Grid>
+                                        <Button Grid.Row="1" Height="20" Margin="5" VerticalAlignment="Top">Clear Log</Button>
+                                    </Grid>
+                                </Grid>
+                            </TabItem>
+                            <!--PIO Tab-->
+                            <TabItem Header="PIO">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                    </Grid.RowDefinitions>
+
+                                    <!-- Card Selection Group -->
+                                    <GroupBox Grid.Row="0" Header="Card Selection" Margin="5">
+                                        <StackPanel Orientation="Horizontal" Margin="5">
+                                            <TextBlock Text="Select Card:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <ComboBox Width="150" Margin="0,0,10,0" SelectedIndex="{Binding SelectedCardIndex}">
+                                                <ComboBoxItem>Card 1 (ID: 1)</ComboBoxItem>
+                                                <ComboBoxItem>Card 2 (ID: 2)</ComboBoxItem>
+                                            </ComboBox>
+                                        </StackPanel>
+                                    </GroupBox>
+
+                                    <!-- I/O Actions Group -->
+                                    <GroupBox Grid.Row="1" Header="I/O Actions" Margin="5">
+                                        <StackPanel Orientation="Horizontal" Margin="5">
+                                            <Button Content="Poll" Width="100" Height="25" Command="{Binding PollIOCommand}" Margin="0,0,10,0"/>
+                                        </StackPanel>
+                                    </GroupBox>
+
+                                    <!-- I/O Controllers Group -->
+                                    <GroupBox Grid.Row="2" Header="I/O Controllers" Margin="5">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Inputs -->
+                                            <GroupBox Grid.Column="0" Header="Inputs" Margin="5">
+                                                <ListView ItemsSource="{Binding InputBits}">
+                                                    <ListView.View>
+                                                        <GridView>
+                                                            <GridViewColumn Header="ID" Width="40" DisplayMemberBinding="{Binding ID}"/>
+                                                            <GridViewColumn Header="Bit" Width="40" DisplayMemberBinding="{Binding Bit}"/>
+                                                            <GridViewColumn Header="Command" Width="120" DisplayMemberBinding="{Binding Command}"/>
+                                                            <GridViewColumn Header="Status" Width="60">
+                                                                <GridViewColumn.CellTemplate>
+                                                                    <DataTemplate>
+                                                                        <Rectangle Width="20" Height="20" 
+                                                       Fill="{Binding IsOn, Converter={StaticResource BoolToColorConverter}}"
+                                                       Stroke="Black" 
+                                                       StrokeThickness="1"/>
+                                                                    </DataTemplate>
+                                                                </GridViewColumn.CellTemplate>
+                                                            </GridViewColumn>
+                                                        </GridView>
+                                                    </ListView.View>
+                                                </ListView>
+                                            </GroupBox>
+
+                                            <!-- Outputs -->
+                                            <GroupBox Grid.Column="1" Header="Outputs" Margin="5">
+                                                <ListView ItemsSource="{Binding OutputBits}">
+                                                    <ListView.View>
+                                                        <GridView>
+                                                            <GridViewColumn Header="ID" Width="40" DisplayMemberBinding="{Binding ID}"/>
+                                                            <GridViewColumn Header="Bit" Width="40" DisplayMemberBinding="{Binding Bit}"/>
+                                                            <GridViewColumn Header="Command" Width="120" DisplayMemberBinding="{Binding Command}"/>
+                                                            <GridViewColumn Header="Status" Width="60">
+                                                                <GridViewColumn.CellTemplate>
+                                                                    <DataTemplate>
+                                                                        <Rectangle Width="20" Height="20" 
+                                                       Fill="{Binding IsOn, Converter={StaticResource BoolToColorConverter}}"
+                                                       Stroke="Black" 
+                                                       StrokeThickness="1"/>
+                                                                    </DataTemplate>
+                                                                </GridViewColumn.CellTemplate>
+                                                            </GridViewColumn>
+                                                            <GridViewColumn Header="Control" Width="100">
+                                                                <GridViewColumn.CellTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <Button Content="ON" Width="40" Margin="0,0,5,0" 
+                                                                                    Command="{Binding DataContext.OnCommand, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                                                    CommandParameter="{Binding}"/>
+                                                                            <Button Content="OFF" Width="40" 
+                                                                                    Command="{Binding DataContext.OffCommand, RelativeSource={RelativeSource AncestorType={x:Type ListView}}}"
+                                                                                    CommandParameter="{Binding}"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </GridViewColumn.CellTemplate>
+                                                            </GridViewColumn>
+                                                        </GridView>
+                                                    </ListView.View>
+                                                </ListView>
+                                            </GroupBox>
+                                        </Grid>
+                                    </GroupBox>
+                                </Grid>
+                            </TabItem>
+                            <!-- Mapping tab-->
+                            <TabItem Header="Mapping">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="24*"/>
+                                        <ColumnDefinition Width="341*"/>
+                                        <ColumnDefinition Width="156*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <!-- Mapping info grid-->
+                                    <ScrollViewer Grid.ColumnSpan="2" Margin="0,0,0,0">
+                                        <ListView x:Name="MappingListView" ItemsSource="{Binding WaferMappingResult, Mode=OneWay, UpdateSourceTrigger=PropertyChanged}">
+                                            <ListView.View>
+                                                <GridView>
+                                                    <GridViewColumn Width="50"  Header="No." DisplayMemberBinding="{Binding No}"/>
+                                                    <GridViewColumn Width="100" Header="Status" DisplayMemberBinding="{Binding Status}"/>
+                                                    <GridViewColumn Width="100" Header="Thickness" DisplayMemberBinding="{Binding Thickness}"/>
+                                                    <GridViewColumn Header="Count" DisplayMemberBinding="{Binding Count}"/>
+                                                </GridView>
+                                            </ListView.View>
+                                        </ListView>
+                                    </ScrollViewer>
+
+                                    <!-- Mapping option side bar -->
+                                    <Grid Grid.Column="2">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="*"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <!-- MAP ACal Status Header -->
+                                        <Border Grid.Row="0" BorderBrush="Gray" BorderThickness="1" Margin="5">
+                                            <TextBlock Text="Map. A-CAL Status" Padding="5" HorizontalAlignment="Center" />
+                                        </Border>
+
+                                        <!-- MAP ACal Status Panel -->
+                                        <Border Grid.Row="1" BorderBrush="Gray" BorderThickness="1" Margin="5,0,5,5">
+                                            <Grid Margin="5">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- TYPE 1 -->
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="TYPE-1" VerticalAlignment="Center" Margin="0,3"/>
+                                                <Border Grid.Row="0" Grid.Column="1" Width="20" Height="15" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type1CalibrationCompleted, Converter={StaticResource BoolToColorConverter}}"/>
+                                                <CheckBox Grid.Row="0" Grid.Column="2" IsChecked="{Binding Type1CalibrationSelected}"/>
+                                                <Border Grid.Row="0" Grid.Column="3" Width="12" Height="12" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type1CalibrationStatus, Converter={StaticResource BoolToColorConverter}}"/>
+
+                                                <!-- TYPE 2 -->
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="TYPE-2" VerticalAlignment="Center" Margin="0,3"/>
+                                                <Border Grid.Row="1" Grid.Column="1" Width="20" Height="15" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type2CalibrationCompleted, Converter={StaticResource BoolToColorConverter}}"/>
+                                                <CheckBox Grid.Row="1" Grid.Column="2" IsChecked="{Binding Type2CalibrationSelected}"/>
+                                                <Border Grid.Row="1" Grid.Column="3" Width="12" Height="12" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type2CalibrationStatus, Converter={StaticResource BoolToColorConverter}}"/>
+
+                                                <!-- TYPE 3 -->
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="TYPE-3" VerticalAlignment="Center" Margin="0,3"/>
+                                                <Border Grid.Row="2" Grid.Column="1" Width="20" Height="15" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type3CalibrationCompleted, Converter={StaticResource BoolToColorConverter}}"/>
+                                                <CheckBox Grid.Row="2" Grid.Column="2" IsChecked="{Binding Type3CalibrationSelected}"/>
+                                                <Border Grid.Row="2" Grid.Column="3" Width="12" Height="12" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type3CalibrationStatus, Converter={StaticResource BoolToColorConverter}}"/>
+
+                                                <!-- TYPE 4 -->
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Text="TYPE-4" VerticalAlignment="Center" Margin="0,3"/>
+                                                <Border Grid.Row="3" Grid.Column="1" Width="20" Height="15" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type4CalibrationCompleted, Converter={StaticResource BoolToColorConverter}}"/>
+                                                <CheckBox Grid.Row="3" Grid.Column="2" IsChecked="{Binding Type4CalibrationSelected}"/>
+                                                <Border Grid.Row="3" Grid.Column="3" Width="12" Height="12" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type4CalibrationStatus, Converter={StaticResource BoolToColorConverter}}"/>
+
+                                                <!-- TYPE 5 -->
+                                                <TextBlock Grid.Row="4" Grid.Column="0" Text="TYPE-5" VerticalAlignment="Center" Margin="0,3"/>
+                                                <Border Grid.Row="4" Grid.Column="1" Width="20" Height="15" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type5CalibrationCompleted, Converter={StaticResource BoolToColorConverter}}"/>
+                                                <CheckBox Grid.Row="4" Grid.Column="2" IsChecked="{Binding Type5CalibrationSelected}"/>
+                                                <Border Grid.Row="4" Grid.Column="3" Width="12" Height="12" Margin="5,3" HorizontalAlignment="Left"
+                            Background="{Binding Type5CalibrationStatus, Converter={StaticResource BoolToColorConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Clear Button -->
+                                        <Button Grid.Row="2" Content="Clear" Margin="5,10,5,5" Command="{Binding ClearCalibrationCommand}" 
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Width="80"/>
+                                    </Grid>
+                                </Grid>
+                            </TabItem>
+
+                        </TabControl>
+                    </TabItem>
+                    <!--Parameter tab-->
+                    <TabItem Header="PARAMETER">
+                        <Grid Margin="5">
+                            <TabControl>
+                                <!-- Common Tab -->
+                                <TabItem Header="COMMON">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="27*"/>
+                                            <ColumnDefinition Width="166*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <!-- Content for Common tab -->
+                                        <TextBlock Text="Common settings will go here" VerticalAlignment="Center" HorizontalAlignment="Left" Foreground="Gray" Grid.Column="1" Margin="130,0,0,0"/>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- Type/Table Tab - MODIFIED TO INCLUDE BUTTONS -->
+                                <TabItem Header="TYPE/TABLE">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto" MinWidth="120"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                                            <StackPanel>
+                                                <!-- Foup Type Group -->
+                                                <!-- Foup Type Group -->
+                                                <GroupBox Header="Foup Type" Margin="5">
+                                                    <Grid Margin="5">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="100" />
+                                                            <ColumnDefinition Width="150" />
+                                                            <ColumnDefinition Width="*" MinWidth="120" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- FOUP Type Selection -->
+                                                        <ComboBox Grid.Row="0" Grid.Column="0" Margin="3" 
+                                                                  ItemsSource="{Binding FOUPTypeOptions}" 
+                                                                  SelectedIndex="{Binding SelectedFOUPTypeIndex, Mode=TwoWay}" />
+
+                                                        <!-- FOUP Type Properties -->
+                                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="POS. Table No." VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="MAP. Table No." VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="Sequence" VerticalAlignment="Center" />
+
+                                                        <!-- Position Table ComboBox in FOUP Type section -->
+                                                        <ComboBox Grid.Row="0" Grid.Column="2" Margin="3" 
+                                                                  ItemsSource="{Binding PositionTableOptions}" 
+                                                                  SelectedIndex="{Binding PositionTableIndexForFoupType, Mode=TwoWay}" />
+
+                                                        <!-- Mapping Table ComboBox in FOUP Type section -->
+                                                        <ComboBox Grid.Row="1" Grid.Column="2" Margin="3" 
+                                                                  ItemsSource="{Binding MappingTableOptions}" 
+                                                                  SelectedIndex="{Binding MappingTableIndexForFoupType, Mode=TwoWay}" />
+
+                                                        <!-- Sequence (FOUP Type) ComboBox in FOUP Type section -->
+                                                        <ComboBox Grid.Row="2" Grid.Column="2" Margin="3" 
+                                                                  ItemsSource="{Binding SequenceOptions}" 
+                                                                  SelectedIndex="{Binding SequenceIndexForFoupType, Mode=TwoWay}" />
+                                                    </Grid>
+                                                </GroupBox>
+
+
+                                                <!-- Position Table No. Group -->
+                                                <GroupBox Header="Position Table No." Margin="5">
+                                                    <Grid Margin="5">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="100" />
+                                                            <ColumnDefinition Width="150" />
+                                                            <ColumnDefinition Width="*" MinWidth="120" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Position Table Selection -->
+                                                        <ComboBox Grid.Row="0" Grid.Column="0" Margin="3" 
+                                                                  ItemsSource="{Binding PositionTableOptions}" 
+                                                                  SelectedIndex="{Binding SelectedPositionTableIndex, Mode=TwoWay}" />
+
+                                                        <!-- Position Table Properties -->
+                                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="MAP. Start (μm)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="MAP. End (μm)" VerticalAlignment="Center" />
+
+                                                        <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding MapStartPosition, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding MapEndPosition, Mode=TwoWay}" Margin="3" />
+                                                    </Grid>
+                                                </GroupBox>
+
+                                                <!-- Mapping Table No. Group -->
+                                                <GroupBox Header="Mapping Table No." Margin="5">
+                                                    <Grid Margin="5">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="100" />
+                                                            <ColumnDefinition Width="150" />
+                                                            <ColumnDefinition Width="*" MinWidth="120" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Mapping Table Selection -->
+                                                        <ComboBox Grid.Row="0" Grid.Column="0" Margin="3" 
+                                                                  ItemsSource="{Binding MappingTableOptions}" 
+                                                                  SelectedIndex="{Binding SelectedMappingTableIndex, Mode=TwoWay}" />
+
+                                                        <!-- Mapping Table Properties -->
+                                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Sensor" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="1" Grid.Column="1" Text="Slot" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="2" Grid.Column="1" Text="Pitch (μm)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="3" Grid.Column="1" Text="Position Range (μm)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="4" Grid.Column="1" Text="Position Range Upper (%)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="5" Grid.Column="1" Text="Position Range Lower (%)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="6" Grid.Column="1" Text="Thick (μm)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="7" Grid.Column="1" Text="Thick Range (μm)" VerticalAlignment="Center" />
+                                                        <TextBlock Grid.Row="8" Grid.Column="1" Text="Offset (μm)" VerticalAlignment="Center" />
+
+                                                        <ComboBox Grid.Row="0" Grid.Column="2" Margin="3" SelectedIndex="{Binding SelectedSensorType, Mode=TwoWay}">
+                                                            <ComboBoxItem>Sensor-A</ComboBoxItem>
+                                                            <ComboBoxItem>Sensor-B</ComboBoxItem>
+                                                        </ComboBox>
+                                                        <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding SlotCount, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="2" Grid.Column="2" Text="{Binding SlotPitch, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="3" Grid.Column="2" Text="{Binding PositionRange, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="4" Grid.Column="2" Text="{Binding PositionRangeUpper, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="5" Grid.Column="2" Text="{Binding PositionRangeLower, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="6" Grid.Column="2" Text="{Binding WaferThickness, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="7" Grid.Column="2" Text="{Binding ThicknessRange, Mode=TwoWay}" Margin="3" />
+                                                        <TextBox Grid.Row="8" Grid.Column="2" Text="{Binding Offset, Mode=TwoWay}" Margin="3" />
+                                                    </Grid>
+                                                </GroupBox>
+                                            </StackPanel>
+                                        </ScrollViewer>
+
+                                        <!-- Control Buttons (moved inside TYPE/TABLE tab) -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Top" Width="120" Margin="10,10,10,0">
+                                            <Button Height="35" Width="120" Margin="0,10,0,10" Command="{Binding LoadParametersCommand}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="📂" FontSize="16" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Load"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Height="35" Width="120" Margin="0,0,0,10" Command="{Binding SaveParametersCommand}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="💾" FontSize="16" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Save"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Height="35" Width="120" Margin="0,0,0,10" Command="{Binding ResetParametersCommand}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🔄" FontSize="16" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Reset to Default"/>
+                                                </StackPanel>
+                                            </Button>
+
+                                            <Button Height="35" Width="120" Margin="0,0,0,10" Command="{Binding ApplyParametersCommand}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="✓" FontSize="16" Margin="0,0,8,0" FontWeight="Bold"/>
+                                                    <TextBlock Text="Apply"/>
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- E84 Tab -->
+                                <TabItem Header="E84">
+                                    <Grid>
+                                        <!-- Content for E84 tab -->
+                                        <TextBlock Text="E84 settings will go here" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"/>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- Option Tab -->
+                                <TabItem Header="OPTION">
+                                    <Grid>
+                                        <!-- Content for Option tab -->
+                                        <TextBlock Text="Option settings will go here" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"/>
+                                    </Grid>
+                                </TabItem>
+
+                                <!-- ExCommand Tab -->
+                                <TabItem Header="ExCommand">
+                                    <Grid>
+                                        <!-- Content for ExCommand tab -->
+                                        <TextBlock Text="Extended command settings will go here" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="Gray"/>
+                                    </Grid>
+                                </TabItem>
+                            </TabControl>
+                        </Grid>
+                    </TabItem>
+                    <TabItem Header="COMMUNICATION">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <!-- IP and Port Controls -->
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="100"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Text="IP:" VerticalAlignment="Center" Grid.Column="0" Margin="0,0,5,0"/>
+                                <TextBox Text="{Binding ServerIP}" IsEnabled="{Binding CanEditServerSettings}" Grid.Column="1" Margin="0,0,10,0"/>
+                                <TextBlock Text="Port:" VerticalAlignment="Center" Grid.Column="2" Margin="0,0,5,0"/>
+                                <TextBox Text="{Binding ServerPort}" IsEnabled="{Binding CanEditServerSettings}" Grid.Column="3"/>
+                            </Grid>
+
+                            <!-- Server Control Buttons -->
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Start Server" Width="120" Height="30" Command="{Binding StartServerCommand}" Margin="0,0,10,0"/>
+                                <Button Content="Stop Server" Width="120" Height="30" Command="{Binding StopServerCommand}" Margin="0,0,10,0"/>
+                                <Button Content="Test Button" Width="120" Height="30" Command="{Binding TestButtonCommand}"/>
+                            </StackPanel>
+
+                            <!-- Message Received Section -->
+                            <TextBlock Grid.Row="2" Text="Message Received" Margin="0,20,0,5"/>
+                            <Border Grid.Row="3" BorderBrush="LightGray" BorderThickness="1">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding ListMsgReceived}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="2"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- Message Sent Section -->
+                            <TextBlock Grid.Row="4" Text="Message Sent" Margin="0,10,0,5"/>
+                            <Border Grid.Row="4" BorderBrush="LightGray" BorderThickness="1" Margin="0,25,0,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding ListMsgSent}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="2"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- Status Section -->
+                            <TextBlock Grid.Row="5" Text="Status" Margin="0,10,0,5"/>
+                            <Border Grid.Row="5" BorderBrush="LightGray" BorderThickness="1" Margin="0,25,0,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding Status}" TextWrapping="Wrap" Margin="5" IsReadOnly="True" VerticalAlignment="Stretch" Background="Transparent" BorderThickness="0"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Grid>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+            <!-- Right Column-->
+            <Grid Grid.Column="2" Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*"/>
+                    <RowDefinition Height="2*"/>
+                    <RowDefinition Height="1*"/>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="3*"/>
+                    <RowDefinition Height="2*"/>
+                    <RowDefinition Height="2*"/>
+                </Grid.RowDefinitions>
+
+                <Button Grid.Row="0" Margin="5" Content="ON-LINE" Command="{Binding ConnectCommand}"/>
+                <Button Grid.Row="1" Margin="5" Content="OFF-LINE" Command="{Binding DisconnectCommand}"/>
+                <Button Grid.Row="3" Margin="5">STOP</Button>
+                <Button Grid.Row="4" Margin="5">PAUSE</Button>
+                <Button Grid.Row="5" Margin="5">RETRY</Button>
+                <Button Grid.Row="4" Margin="5">RESET</Button>
+                <Button Grid.Row="6" Margin="5" Content="Mapping" Command="{Binding MappingWindow}"/>
+                <Button Grid.Row="8" Margin="5">Send</Button>
+                <Button Grid.Row="9" Margin="5">Clear</Button>
+            </Grid>
+        </Grid>
+        <!--#endregion-->
+    </Grid>
+</Window>

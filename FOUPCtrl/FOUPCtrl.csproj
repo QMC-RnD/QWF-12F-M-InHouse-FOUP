@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{BCE4EB8E-D9E0-4DDF-B5A6-2E677727ACC4}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>FOUPCtrl</RootNamespace>
+    <AssemblyName>FOUPCtrl</AssemblyName>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <WarningLevel>4</WarningLevel>
+    <Deterministic>true</Deterministic>
+    <NuGetPackageImportStamp>
+    </NuGetPackageImportStamp>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>full</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE;x64</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x64</PlatformTarget>
+    <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x86'">
+    <DebugSymbols>true</DebugSymbols>
+    <OutputPath>bin\x86\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x86'">
+    <OutputPath>bin\x86\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <Optimize>true</Optimize>
+    <DebugType>pdbonly</DebugType>
+    <PlatformTarget>x86</PlatformTarget>
+    <GenerateSerializationAssemblies>On</GenerateSerializationAssemblies>
+    <LangVersion>7.3</LangVersion>
+    <ErrorReport>prompt</ErrorReport>
+  </PropertyGroup>
+  <PropertyGroup>
+    <StartupObject />
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="CommunityToolkit.Mvvm, Version=8.4.0.0, Culture=neutral, PublicKeyToken=4aff67a105548ee2, processorArchitecture=MSIL">
+      <HintPath>..\packages\CommunityToolkit.Mvvm.8.4.0\lib\netstandard2.0\CommunityToolkit.Mvvm.dll</HintPath>
+    </Reference>
+    <Reference Include="Creden.Hardware64.Cards, Version=1.0.8749.30352, Culture=neutral, processorArchitecture=AMD64">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\lib\HardwareManager\Creden.Hardware64.Cards.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\Microsoft.Bcl.AsyncInterfaces.8.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
+    <Reference Include="Mvvm">
+      <HintPath>..\lib\Mvvm\Mvvm.dll</HintPath>
+    </Reference>
+    <Reference Include="NLog, Version=6.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
+      <HintPath>..\packages\NLog.6.0.0\lib\net46\NLog.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.4.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Buffers.4.6.0\lib\net462\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.Annotations, Version=4.2.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.ComponentModel.Annotations.5.0.0\lib\net461\System.ComponentModel.Annotations.dll</HintPath>
+    </Reference>
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Memory, Version=4.0.2.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Memory.4.6.0\lib\net462\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.5.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.6.0\lib\net462\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.1.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.1.0\lib\net462\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Xml" />
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.Data.DataSetExtensions" />
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Xaml">
+      <RequiredTargetFramework>4.0</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="BooleanToColorConverter.cs" />
+    <Compile Include="Communication\CommandProcessor.cs" />
+    <Compile Include="Communication\CRC16Calculator.cs" />
+    <Compile Include="Communication\CRC16Test.cs" />
+    <Compile Include="Communication\ProtocolMessage.cs" />
+    <Compile Include="Communication\ProtocolSettings.cs" />
+    <Compile Include="Fate.Wpf.MVVM\AsyncCommand.cs" />
+    <Compile Include="Fate.Wpf.MVVM\AsyncCommand{TResult}.cs" />
+    <Compile Include="Fate.Wpf.MVVM\IAsyncCommand.cs" />
+    <Compile Include="Fate.Wpf.MVVM\IMessageBoxService.cs" />
+    <Compile Include="Fate.Wpf.MVVM\IWindow.cs" />
+    <Compile Include="Fate.Wpf.MVVM\IWindowService.cs" />
+    <Compile Include="Fate.Wpf.MVVM\MessageBoxService.cs" />
+    <Compile Include="Fate.Wpf.MVVM\NotifyTaskCompletion{TResult}.cs" />
+    <Compile Include="Fate.Wpf.MVVM\Properties\AssemblyInfo.cs" />
+    <Compile Include="Fate.Wpf.MVVM\PropertyChangedBase.cs" />
+    <Compile Include="Fate.Wpf.MVVM\RelayCommand.cs" />
+    <Compile Include="Fate.Wpf.MVVM\RelayCommand{TResult}.cs" />
+    <Compile Include="Fate.Wpf.MVVM\ViewModelBase.cs" />
+    <Compile Include="Fate.Wpf.MVVM\WindowService.cs" />
+    <Compile Include="Global.cs" />
+    <Compile Include="FOUP_Hardware\HardwareManager.cs" />
+    <Compile Include="HardwareManager\Controllers\Controller.cs" />
+    <Compile Include="HardwareManager\Controllers\IController.cs" />
+    <Compile Include="HardwareManager\Controllers\IOs\CredenIOController.cs" />
+    <Compile Include="HardwareManager\Controllers\IOs\IIOController.cs" />
+    <Compile Include="HardwareManager\Controllers\IOs\IOController.cs" />
+    <Compile Include="HardwareManager\Controllers\IOs\IOMode.cs" />
+    <Compile Include="HardwareManager\Converters\AxisIdToVisibilityConverter.cs" />
+    <Compile Include="HardwareManager\Converters\BooleanAndConverter.cs" />
+    <Compile Include="HardwareManager\Converters\BooleanToColorConverter.cs" />
+    <Compile Include="HardwareManager\Converters\BoolToObjectConverter.cs" />
+    <Compile Include="HardwareManager\Converters\CassetteCharToColorConverter.cs" />
+    <Compile Include="HardwareManager\Converters\EnumToBooleanConverter.cs" />
+    <Compile Include="HardwareManager\Converters\EnumToVisibilityConverter.cs" />
+    <Compile Include="HardwareManager\Converters\StringToVisibilityConverter.cs" />
+    <Compile Include="HardwareManager\Drivers\Driver.cs" />
+    <Compile Include="HardwareManager\Drivers\IDriver.cs" />
+    <Compile Include="HardwareManager\Drivers\IOs\CredenIODriver.cs" />
+    <Compile Include="HardwareManager\Drivers\IOs\FakeIODriver.cs" />
+    <Compile Include="HardwareManager\Drivers\IOs\IIODriver.cs" />
+    <Compile Include="HardwareManager\Exceptions\CredenLinkErrorException.cs" />
+    <Compile Include="HardwareManager\HWManager.cs" />
+    <Compile Include="HardwareManager\Serializers\ControllerSerializer.cs" />
+    <Compile Include="HardwareManager\Serializers\DataSerializer.cs" />
+    <Compile Include="HardwareManager\Serializers\DriverSerializer.cs" />
+    <Compile Include="HardwareManager\Serializers\IDataSerializer.cs" />
+    <Compile Include="HardwareManager\Serializers\ISerializableData.cs" />
+    <Compile Include="HardwareManager\Utilities\PropertyCopier.cs" />
+    <Compile Include="HardwareManager\ViewModels\IOs\IOConfigViewModels.cs" />
+    <Compile Include="HardwareManager\ViewModels\IOs\IODetailsViewModel.cs" />
+    <Compile Include="HardwareManager\ViewModels\IOs\IOModeDataTemplateSelector.cs" />
+    <Compile Include="HardwareManager\ViewModels\IOs\IOPropertiesVIewModel.cs" />
+    <Compile Include="HardwareManager\ViewModels\IOs\IOTabViewModel.cs" />
+    <Compile Include="HardwareManager\ViewModels\ITabItem.cs" />
+    <Compile Include="HardwareManager\Views\IOs\IOConfigView.xaml.cs">
+      <DependentUpon>IOConfigView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="HardwareManager\Views\IOs\IOPropertiesView.xaml.cs">
+      <DependentUpon>IOPropertiesView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="HardwareManager\Views\IOs\IOTabView.xaml.cs">
+      <DependentUpon>IOTabView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Hardware\Controllers.cs" />
+    <Compile Include="Hardware\HardwareCardFactory.cs" />
+    <Compile Include="Hardware\IHardwareCard.cs" />
+    <Compile Include="HiResTimer.cs" />
+    <Compile Include="ImappingSettings.cs" />
+    <Compile Include="MappingTable.cs" />
+    <Compile Include="MappingTypeProfile.cs" />
+    <Compile Include="Models\MappingList.cs" />
+    <Compile Include="Models\MappingResult.cs" />
+    <Compile Include="Models\OEM.cs" />
+    <Compile Include="Models\WaferStatus.cs" />
+    <Compile Include="PositionTable.cs" />
+    <Compile Include="Models\Settings.cs" />
+    <Compile Include="Services\FOUPCommunicationService.cs" />
+    <Compile Include="Services\FOUPDeviceManager.cs" />
+    <Compile Include="Services\FOUPMappingService.cs" />
+    <Compile Include="Services\FOUPTrainingService.cs" />
+    <Compile Include="TCPServer\ConnectionMgr.cs" />
+    <Compile Include="TCPServer\TCPServer.cs" />
+    <Compile Include="Utilities\InBits.cs" />
+    <Compile Include="Utilities\IniDocument.cs" />
+    <Compile Include="WaferMap.cs" />
+    <Compile Include="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="FOUPInfo.cs" />
+    <Compile Include="FOUP_Ctrl.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Properties\Resources.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+    <Compile Include="Properties\Settings.Designer.cs">
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Settings.settings</DependentUpon>
+      <DesignTimeSharedInput>True</DesignTimeSharedInput>
+    </Compile>
+    <EmbeddedResource Include="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Properties\Resources.zh-Hans.resx" />
+    <None Include="Fate.Wpf.MVVM\Fate.Wpf.MVVM.csproj" />
+    <None Include="packages.config" />
+    <None Include="Properties\Settings.settings">
+      <Generator>SettingsSingleFileGenerator</Generator>
+      <LastGenOutput>Settings.Designer.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="App.config" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="HardwareManager\Views\IOs\IOConfigView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="HardwareManager\Views\IOs\IOPropertiesView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="HardwareManager\Views\IOs\IOTabView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Import Project="..\packages\CommunityToolkit.Mvvm.8.4.0\build\CommunityToolkit.Mvvm.targets" Condition="Exists('..\packages\CommunityToolkit.Mvvm.8.4.0\build\CommunityToolkit.Mvvm.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\packages\CommunityToolkit.Mvvm.8.4.0\build\CommunityToolkit.Mvvm.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\CommunityToolkit.Mvvm.8.4.0\build\CommunityToolkit.Mvvm.targets'))" />
+  </Target>
+</Project>
