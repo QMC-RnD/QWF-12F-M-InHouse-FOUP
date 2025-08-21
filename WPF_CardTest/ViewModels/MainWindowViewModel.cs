@@ -8,6 +8,7 @@ using FOUPCtrl.Services;
 using FOUPCtrl.TCPServer;
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
@@ -131,8 +132,8 @@ namespace WPF_CardTest.ViewModels
         private int _selectedMappingTableIndex;
         private int _selectedSequenceIndex;
         private int _selectedCardIndex = 0;
-        private ObservableCollection<IOBitStatus> _inputBits = new ObservableCollection<IOBitStatus>();
-        private ObservableCollection<IOBitStatus> _outputBits = new ObservableCollection<IOBitStatus>();
+        private ObservableCollection<FOUP_Ctrl.IOBitStatus> _inputBits = new ObservableCollection<FOUP_Ctrl.IOBitStatus>();
+        private ObservableCollection<FOUP_Ctrl.IOBitStatus> _outputBits = new ObservableCollection<FOUP_Ctrl.IOBitStatus>();
         #endregion
 
         #region Properties - Connection Status
@@ -250,8 +251,8 @@ namespace WPF_CardTest.ViewModels
         public int SelectedTypeIndex { get => _selectedTypeIndex; set { if (SetProperty(ref _selectedTypeIndex, value) && value > 0) { Settings.Instance.ActiveMappingType = value; Settings.Instance.SaveToFile(); } } }
 
         public int SelectedCardIndex { get => _selectedCardIndex; set { if (SetProperty(ref _selectedCardIndex, value) && IsConnected) PollIOStatus(); } }
-        public ObservableCollection<IOBitStatus> InputBits { get => _inputBits; set => SetProperty(ref _inputBits, value); }
-        public ObservableCollection<IOBitStatus> OutputBits { get => _outputBits; set => SetProperty(ref _outputBits, value); }
+        public ObservableCollection<FOUP_Ctrl.IOBitStatus> InputBits { get => _inputBits; set => SetProperty(ref _inputBits, value); }
+        public ObservableCollection<FOUP_Ctrl.IOBitStatus> OutputBits { get => _outputBits; set => SetProperty(ref _outputBits, value); }
         #endregion
 
         #region Properties - Type/Table Configuration
@@ -1009,8 +1010,8 @@ namespace WPF_CardTest.ViewModels
         private void InitializePIOCommands()
         {
             PollIOCommand = new RelayCommand(param => PollIOStatus(), param => IsConnected);
-            OnCommand = new RelayCommand(param => SetIOBit(param as IOBitStatus, true), param => IsConnected && param is IOBitStatus);
-            OffCommand = new RelayCommand(param => SetIOBit(param as IOBitStatus, false), param => IsConnected && param is IOBitStatus);
+            OnCommand = new RelayCommand(param => SetIOBit(param as FOUP_Ctrl.IOBitStatus, true), param => IsConnected && param is FOUP_Ctrl.IOBitStatus);
+            OffCommand = new RelayCommand(param => SetIOBit(param as FOUP_Ctrl.IOBitStatus, false), param => IsConnected && param is FOUP_Ctrl.IOBitStatus);
         }
         #endregion
 
@@ -1227,33 +1228,21 @@ namespace WPF_CardTest.ViewModels
             Status = "Moving elevator to origin position...";
             try
             {
-                bool elevatorUpSuccess = await Task.Run(() => _foupCtrl.ElevatorUp(_cts.Token));
-                if (!elevatorUpSuccess)
+                bool success = await _foupCtrl.ExecuteOriginCommand(_cts.Token);
+                if (success)
                 {
-                    MessageBox.Show("Failed to move elevator to the top position.", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    Status = "Failed to reach elevator origin position.";
-                    return;
+                    Status = "Elevator moved to origin position successfully.";
                 }
-
-                await Task.Delay(500, _cts.Token);
-
-                if (_foupCtrl._credenAxisCard != null)
+                else
                 {
-                    var status = _foupCtrl._credenAxisCard.SetAbsPosition(3, 0);
-                    if (status != CardStatus.Successful)
-                    {
-                        MessageBox.Show($"Failed to set position to 0: {status}", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        Status = "Failed to set position to 0.";
-                        return;
-                    }
+                    Status = _foupCtrl.ErrorMessage ?? "Failed to reach elevator origin position.";
+                    MessageBox.Show(_foupCtrl.ErrorMessage ?? "Failed to reach elevator origin position.", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-
-                Status = "Elevator moved to origin position successfully.";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error during origin operation: {ex.Message}", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 Status = "Error during origin operation.";
+                MessageBox.Show($"Error during origin operation: {ex.Message}", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1453,195 +1442,44 @@ namespace WPF_CardTest.ViewModels
 
             try
             {
-                byte cardId = (byte)(SelectedCardIndex == 0 ? _foupCtrl.IOID1 : _foupCtrl.IOID2);
-                // FIX: Cast IHardwareCard to IO1616Card properly
-                IO1616Card selectedCard = SelectedCardIndex == 0 ? _foupCtrl._credenIOCard1 : _foupCtrl._credenIOCard2;
+                // Create temporary lists to hold the results
+                var inputBitsList = new List<FOUP_Ctrl.IOBitStatus>();
+                var outputBitsList = new List<FOUP_Ctrl.IOBitStatus>();
 
-                if (selectedCard == null)
+                // Call the FOUPCtrl method
+                bool success = _foupCtrl.PollIOStatus(SelectedCardIndex, inputBitsList, outputBitsList);
+
+                if (success)
                 {
-                    Status = $"Selected IO card {(SelectedCardIndex == 0 ? 1 : 2)} is not initialized";
-                    return;
+                    // Update the observable collections
+                    InputBits.Clear();
+                    foreach (var bit in inputBitsList)
+                    {
+                        InputBits.Add(bit);
+                    }
+
+                    OutputBits.Clear();
+                    foreach (var bit in outputBitsList)
+                    {
+                        OutputBits.Add(bit);
+                    }
+
+                    Status = $"Successfully polled IO Card {(SelectedCardIndex == 0 ? 1 : 2)}";
+                    UpdateIOBitDisplay();
                 }
-
-                // Always clear input bits as they are refreshed completely
-                InputBits.Clear();
-
-                // Remove output bits only for the currently selected card to avoid duplicates
-                var outputBitsToKeep = OutputBits.Where(bit => bit.ID != cardId).ToList();
-                OutputBits.Clear();
-                foreach (var bit in outputBitsToKeep)
+                else
                 {
-                    OutputBits.Add(bit);
+                    Status = _foupCtrl.ErrorMessage ?? "Failed to poll I/O status";
+                    MessageService.Show(_foupCtrl.ErrorMessage ?? "Failed to poll I/O status", "Poll Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
-
-                if (SelectedCardIndex == 0) // Card 1
-                {
-                    PopulateCard1IOBits(cardId, selectedCard);
-                }
-                else // Card 2
-                {
-                    PopulateCard1IOBits(cardId, selectedCard);
-                }
-
-                Status = $"Successfully polled IO Card {(SelectedCardIndex == 0 ? 1 : 2)} (ID: {cardId}) on COM4";
-                UpdateIOBitDisplay();
             }
             catch (Exception ex)
             {
-                Status = $"Error polling I/O status for Card {(SelectedCardIndex == 0 ? 1 : 2)}: {ex.Message}";
-                MessageService.Show($"Error polling I/O status: {ex.Message}\n\nPlease check that:\n- COM4 is properly connected\n- Cards have correct ID settings\n- Cards are powered on", "Poll Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                Status = $"Error polling I/O status: {ex.Message}";
+                MessageService.Show($"Error polling I/O status: {ex.Message}", "Poll Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
-        private void PopulateCard1IOBits(byte cardId, IO1616Card selectedCard)
-        {
-            string driver = $"CredenIODriver[{cardId}][COM4]";
-
-            // Card 1 inputs - always read current state
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "CLAMP LIMIT SENSOR", IsOn = _foupCtrl.ReadBit(selectedCard, 0) == 1, Driver = driver, Port = 0 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 1, Command = "UNCLAMP LIMIT SENSOR", IsOn = _foupCtrl.ReadBit(selectedCard, 1) == 1, Driver = driver, Port = 1 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 2, Command = "PRESENCE SENSOR 1&2 (R&L)", IsOn = _foupCtrl.ReadBit(selectedCard, 2) == 1, Driver = driver, Port = 2 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 3, Command = "PRESENCE SENSOR 3", IsOn = _foupCtrl.ReadBit(selectedCard, 3) == 1, Driver = driver, Port = 3 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 4, Command = "DOCK HEAD PINCH SENSOR", IsOn = _foupCtrl.ReadBit(selectedCard, 4) == 1, Driver = driver, Port = 4 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 5, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 5) == 1, Driver = driver, Port = 5 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 6, Command = "ELEVATOR UPPER LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 6) == 1, Driver = driver, Port = 6 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 7, Command = "PROTUSION PAIR SENSOR", IsOn = _foupCtrl.ReadBit(selectedCard, 7) == 1, Driver = driver, Port = 7 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 8, Command = "VACUMM SENSOR", IsOn = _foupCtrl.ReadBit(selectedCard, 8) == 1, Driver = driver, Port = 8 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 9, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 9) == 1, Driver = driver, Port = 9 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 10, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 10) == 1, Driver = driver, Port = 10 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 11, Command = "DOCK FORWARD LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 11) == 1, Driver = driver, Port = 11 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 12, Command = "DOCK BACKWARD LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 12) == 1, Driver = driver, Port = 12 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 13, Command = "PRESENCE DIAGONAL 1 (R)", IsOn = _foupCtrl.ReadBit(selectedCard, 13) == 1, Driver = driver, Port = 13 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "PRESENCE DIAGONAL 2 (L)", IsOn = _foupCtrl.ReadBit(selectedCard, 14) == 1, Driver = driver, Port = 14 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 15) == 1, Driver = driver, Port = 15 });
-
-            // Card 1 outputs - read current hardware state
-            try
-            {
-                byte outputPort2 = 0;
-                byte outputPort3 = 0;
-                selectedCard.ReadPort(2, ref outputPort2);  // Read output port 2 (bits 0-7)
-                selectedCard.ReadPort(3, ref outputPort3);  // Read output port 3 (bits 8-15)
-
-                // Add output bits with their current hardware state
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "VACUMM VALVE 1A", IsOn = (outputPort2 & 0x01) != 0, Driver = driver, Port = 0 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 1, Command = "VACUMM VALVE 1B", IsOn = (outputPort2 & 0x02) != 0, Driver = driver, Port = 1 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 2, Command = "VALVE 2A (EXHAUST UP)", IsOn = (outputPort2 & 0x04) != 0, Driver = driver, Port = 2 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 3, Command = "VALVE 2B (DOWN)", IsOn = (outputPort2 & 0x08) != 0, Driver = driver, Port = 3 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 4, Command = "VALVE 3A (EXHAUST DOWN)", IsOn = (outputPort2 & 0x10) != 0, Driver = driver, Port = 4 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 5, Command = "VALVE 3B (UP)", IsOn = (outputPort2 & 0x20) != 0, Driver = driver, Port = 5 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 6, Command = "UNCLAMP", IsOn = (outputPort2 & 0x40) != 0, Driver = driver, Port = 6 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 7, Command = "CLAMP", IsOn = (outputPort2 & 0x80) != 0, Driver = driver, Port = 7 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 8, Command = "DOCK SLIDE BACKWARD", IsOn = (outputPort3 & 0x01) != 0, Driver = driver, Port = 8 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 9, Command = "DOCK SLIDE FORWARD", IsOn = (outputPort3 & 0x02) != 0, Driver = driver, Port = 9 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 10, Command = "DOOR BACKWARD", IsOn = (outputPort3 & 0x04) != 0, Driver = driver, Port = 10 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 11, Command = "DOOR FORWARD", IsOn = (outputPort3 & 0x08) != 0, Driver = driver, Port = 11 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 12, Command = "LATCH", IsOn = (outputPort3 & 0x10) != 0, Driver = driver, Port = 12 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 13, Command = "UNLATCH", IsOn = (outputPort3 & 0x20) != 0, Driver = driver, Port = 13 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "MAPPING FORWARD", IsOn = (outputPort3 & 0x40) != 0, Driver = driver, Port = 14 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "MAPPING BACKWARD", IsOn = (outputPort3 & 0x80) != 0, Driver = driver, Port = 15 });
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to read Card 1 output port states: {ex.Message}");
-                AddDefaultCard1OutputBits(cardId, driver);
-            }
-        }
-
-        private void PopulateCard2IOBits(byte cardId, IO1616Card selectedCard)
-        {
-            string driver = $"CredenIODriver[{cardId}][COM4]";
-
-            // Card 2 inputs - always read current state
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "E STOP 1", IsOn = _foupCtrl.ReadBit(selectedCard, 0) == 1, Driver = driver, Port = 0 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 1, Command = "E STOP 2", IsOn = _foupCtrl.ReadBit(selectedCard, 1) == 1, Driver = driver, Port = 1 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 2, Command = "MAINTENANCE MODE / SWITCH", IsOn = _foupCtrl.ReadBit(selectedCard, 2) == 1, Driver = driver, Port = 2 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 3, Command = "PRESSURE SENSOR", IsOn = _foupCtrl.ReadBit(selectedCard, 3) == 1, Driver = driver, Port = 3 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 4, Command = "ELEVATOR LOWER LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 4) == 1, Driver = driver, Port = 4 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 5, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 5) == 1, Driver = driver, Port = 5 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 6, Command = "LATCH LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 6) == 1, Driver = driver, Port = 6 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 7, Command = "UNLATCH LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 7) == 1, Driver = driver, Port = 7 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 8, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 8) == 1, Driver = driver, Port = 8 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 9, Command = "-", IsOn = _foupCtrl.ReadBit(selectedCard, 9) == 1, Driver = driver, Port = 9 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 10, Command = "DOOR FORWARD LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 10) == 1, Driver = driver, Port = 10 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 11, Command = "DOOR BACKWARD LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 11) == 1, Driver = driver, Port = 11 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 12, Command = "MAPPING FORWARD LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 12) == 1, Driver = driver, Port = 12 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 13, Command = "MAPPING BACKWARD LIMIT", IsOn = _foupCtrl.ReadBit(selectedCard, 13) == 1, Driver = driver, Port = 13 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "MAPPING AMPLIFIER 1", IsOn = _foupCtrl.ReadBit(selectedCard, 14) == 1, Driver = driver, Port = 14 });
-            InputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "MAPPING AMPLIFIER 2", IsOn = _foupCtrl.ReadBit(selectedCard, 15) == 1, Driver = driver, Port = 15 });
-
-            // Card 2 outputs - read current hardware state
-            try
-            {
-                byte outputPort2 = 0;
-                byte outputPort3 = 0;
-                selectedCard.ReadPort(2, ref outputPort2);  // Read output port 2 (bits 0-7)
-                selectedCard.ReadPort(3, ref outputPort3);  // Read output port 3 (bits 8-15)
-
-                // Add output bits with their current hardware state
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "LED - PRESENCE", IsOn = (outputPort2 & 0x01) != 0, Driver = driver, Port = 0 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 1, Command = "LED - PLACEMENT", IsOn = (outputPort2 & 0x02) != 0, Driver = driver, Port = 1 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 2, Command = "LED - STATUS 1", IsOn = (outputPort2 & 0x04) != 0, Driver = driver, Port = 2 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 3, Command = "LED - STATUS 2", IsOn = (outputPort2 & 0x08) != 0, Driver = driver, Port = 3 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 4, Command = "LED - LOAD", IsOn = (outputPort2 & 0x10) != 0, Driver = driver, Port = 4 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 5, Command = "LED - UNLOAD", IsOn = (outputPort2 & 0x20) != 0, Driver = driver, Port = 5 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 6, Command = "LED - ALARM", IsOn = (outputPort2 & 0x40) != 0, Driver = driver, Port = 6 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 7, Command = "-", IsOn = (outputPort2 & 0x80) != 0, Driver = driver, Port = 7 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 8, Command = "-", IsOn = (outputPort3 & 0x01) != 0, Driver = driver, Port = 8 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 9, Command = "-", IsOn = (outputPort3 & 0x02) != 0, Driver = driver, Port = 9 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 10, Command = "-", IsOn = (outputPort3 & 0x04) != 0, Driver = driver, Port = 10 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 11, Command = "-", IsOn = (outputPort3 & 0x08) != 0, Driver = driver, Port = 11 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 12, Command = "-", IsOn = (outputPort3 & 0x10) != 0, Driver = driver, Port = 12 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 13, Command = "-", IsOn = (outputPort3 & 0x20) != 0, Driver = driver, Port = 13 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "-", IsOn = (outputPort3 & 0x40) != 0, Driver = driver, Port = 14 });
-                OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "-", IsOn = (outputPort3 & 0x80) != 0, Driver = driver, Port = 15 });
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to read Card 2 output port states: {ex.Message}");
-                AddDefaultCard2OutputBits(cardId, driver);
-            }
-        }
-
-        private void AddDefaultCard1OutputBits(byte cardId, string driver)
-        {
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "VACUMM VALVE 1A", IsOn = false, Driver = driver, Port = 0 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 1, Command = "VACUMM VALVE 1B", IsOn = false, Driver = driver, Port = 1 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 2, Command = "VALVE 2A (EXHAUST UP)", IsOn = false, Driver = driver, Port = 2 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 3, Command = "VALVE 2B (DOWN)", IsOn = false, Driver = driver, Port = 3 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 4, Command = "VALVE 3A (EXHAUST DOWN)", IsOn = false, Driver = driver, Port = 4 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 5, Command = "VALVE 3B (UP)", IsOn = false, Driver = driver, Port = 5 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 6, Command = "UNCLAMP", IsOn = false, Driver = driver, Port = 6 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 7, Command = "CLAMP", IsOn = false, Driver = driver, Port = 7 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 8, Command = "DOCK SLIDE BACKWARD", IsOn = false, Driver = driver, Port = 8 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 9, Command = "DOCK SLIDE FORWARD", IsOn = false, Driver = driver, Port = 9 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 10, Command = "DOOR BACKWARD", IsOn = false, Driver = driver, Port = 10 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 11, Command = "DOOR FORWARD", IsOn = false, Driver = driver, Port = 11 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 12, Command = "LATCH", IsOn = false, Driver = driver, Port = 12 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 13, Command = "UNLATCH", IsOn = false, Driver = driver, Port = 13 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "MAPPING FORWARD", IsOn = false, Driver = driver, Port = 14 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "MAPPING BACKWARD", IsOn = false, Driver = driver, Port = 15 });
-        }
-
-        private void AddDefaultCard2OutputBits(byte cardId, string driver)
-        {
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "LED - PRESENCE", IsOn = false, Driver = driver, Port = 0 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 1, Command = "LED - PLACEMENT", IsOn = false, Driver = driver, Port = 1 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 2, Command = "LED - STATUS 1", IsOn = false, Driver = driver, Port = 2 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 3, Command = "LED - STATUS 2", IsOn = false, Driver = driver, Port = 3 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 4, Command = "LED - LOAD", IsOn = false, Driver = driver, Port = 4 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 5, Command = "LED - UNLOAD", IsOn = false, Driver = driver, Port = 5 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 6, Command = "LED - ALARM", IsOn = false, Driver = driver, Port = 6 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 7, Command = "-", IsOn = false, Driver = driver, Port = 7 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 8, Command = "-", IsOn = false, Driver = driver, Port = 8 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 9, Command = "-", IsOn = false, Driver = driver, Port = 9 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 10, Command = "-", IsOn = false, Driver = driver, Port = 10 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 11, Command = "-", IsOn = false, Driver = driver, Port = 11 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 12, Command = "-", IsOn = false, Driver = driver, Port = 12 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 13, Command = "-", IsOn = false, Driver = driver, Port = 13 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "-", IsOn = false, Driver = driver, Port = 14 });
-            OutputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "-", IsOn = false, Driver = driver, Port = 15 });
-        }
 
         private void SetIOBit(IOBitStatus bitStatus, bool value)
         {
@@ -1649,50 +1487,18 @@ namespace WPF_CardTest.ViewModels
 
             try
             {
-                byte cardId = (byte)(SelectedCardIndex == 0 ? _foupCtrl.IOID1 : _foupCtrl.IOID2);
-                IO1616Card selectedCard = SelectedCardIndex == 0 ? _foupCtrl._credenIOCard1 : _foupCtrl._credenIOCard2;
+                bool success = _foupCtrl.SetIOBit(SelectedCardIndex, bitStatus.Bit, value);
 
-                if (selectedCard != null)
+                if (success)
                 {
-                    Status = $"Setting bit {bitStatus.Bit} {(value ? "ON" : "OFF")} for card {(SelectedCardIndex == 0 ? 1 : 2)} (ID: {cardId})";
-
-                    int portId = bitStatus.Bit < 8 ? 2 : 3;
-                    int bitIndex = bitStatus.Bit % 8;
-
-                    byte currentValue = 0;
-                    CardStatus readStatus = selectedCard.ReadPort((byte)portId, ref currentValue);
-
-                    if (readStatus == CardStatus.Successful)
-                    {
-                        if (value)
-                            currentValue |= (byte)(1 << bitIndex);
-                        else
-                            currentValue &= (byte)~(1 << bitIndex);
-
-                        CardStatus writeStatus = selectedCard.WritePort((byte)portId, currentValue);
-
-                        if (writeStatus == CardStatus.Successful)
-                        {
-                            bitStatus.IsOn = value;
-                            Status = $"Successfully set bit {bitStatus.Bit} {(value ? "ON" : "OFF")}";
-                            UpdateIOBitDisplay();
-                        }
-                        else
-                        {
-                            Status = $"Failed to write bit {bitStatus.Bit}. Write Status: {writeStatus}";
-                            MessageService.Show($"Failed to write output bit {bitStatus.Bit}.\nWrite Status: {writeStatus}", "Hardware Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                        }
-                    }
-                    else
-                    {
-                        Status = $"Failed to read current port value for bit {bitStatus.Bit}. Read Status: {readStatus}";
-                        MessageService.Show($"Failed to read current port value for bit {bitStatus.Bit}.\nRead Status: {readStatus}", "Hardware Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    }
+                    bitStatus.IsOn = value;
+                    Status = $"Successfully set bit {bitStatus.Bit} {(value ? "ON" : "OFF")}";
+                    UpdateIOBitDisplay();
                 }
                 else
                 {
-                    Status = $"Error: Selected IO card {(SelectedCardIndex == 0 ? 1 : 2)} is not initialized";
-                    MessageService.Show($"IO Card {(SelectedCardIndex == 0 ? 1 : 2)} is not properly initialized.", "Card Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    Status = _foupCtrl.ErrorMessage ?? $"Failed to set bit {bitStatus.Bit}";
+                    MessageService.Show(_foupCtrl.ErrorMessage ?? $"Failed to set bit {bitStatus.Bit}", "Hardware Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
@@ -2023,17 +1829,17 @@ namespace WPF_CardTest.ViewModels
         #endregion
 
         #region IO Bit Status Model
-        public class IOBitStatus
-        {
-            public int ID { get; set; }
-            public int Bit { get; set; }
-            public string Command { get; set; }
-            public bool IsOn { get; set; }
-            public string Driver { get; set; }
-            public int Port { get; set; }
-            public int DelayMs { get; set; }
-            public string Configuration { get; set; }
-        }
+        //public class IOBitStatus
+        //{
+        //    public int ID { get; set; }
+        //    public int Bit { get; set; }
+        //    public string Command { get; set; }
+        //    public bool IsOn { get; set; }
+        //    public string Driver { get; set; }
+        //    public int Port { get; set; }
+        //    public int DelayMs { get; set; }
+        //    public string Configuration { get; set; }
+        //}
         #endregion
     }
 }
