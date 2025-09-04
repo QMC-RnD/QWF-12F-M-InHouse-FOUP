@@ -618,6 +618,9 @@ namespace FoupControl
         #region Control Operations
         public bool Clamp(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1)
                 return false;
 
@@ -669,6 +672,9 @@ namespace FoupControl
 
         public bool Unclamp(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1)
                 return false;
 
@@ -907,6 +913,9 @@ namespace FoupControl
         // Elevator Up operation
         public bool ElevatorUp(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1)
                 return false;
 
@@ -959,6 +968,9 @@ namespace FoupControl
         // Elevator Down operation
         public bool ElevatorDown(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
@@ -1016,6 +1028,9 @@ namespace FoupControl
         // Door Forward (Open) operation
         public bool DoorForward(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
@@ -1074,6 +1089,9 @@ namespace FoupControl
         // Door Backward (Close) operation
         public bool DoorBackward(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
@@ -1130,6 +1148,9 @@ namespace FoupControl
 
         public bool DockForward(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1)
                 return false;
 
@@ -1182,6 +1203,9 @@ namespace FoupControl
         // Dock Backward (Retract) operation
         public bool DockBackward(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1)
                 return false;
 
