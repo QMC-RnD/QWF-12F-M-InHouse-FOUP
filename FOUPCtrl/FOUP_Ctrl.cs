@@ -5881,5 +5881,421 @@ namespace FoupControl
             public int DelayMs { get; set; }
             public string Configuration { get; set; }
         }
+
+        /// <summary>
+        /// Moves the elevator to the mapping start position using values from the current position table
+        /// </summary>
+        /// <param name="token">Cancellation token for the operation</param>
+        /// <returns>True if the elevator successfully reached the mapping start position, false otherwise</returns>
+        public bool ElevatorMappingStartPosition(CancellationToken token)
+        {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
+            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
+            {
+                _errorMessage = "Not all cards are connected - cannot move to mapping start position.";
+                Debug.WriteLine(_errorMessage);
+                return false;
+            }
+
+            try
+            {
+                Debug.WriteLine("Starting elevator mapping start position operation...");
+
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Get the mapping start position from the current position table based on active mapping type
+                double mappingStartPositionMm = FOUPCtrl.Models.Settings.Instance.CurrentPositionTable.MapStartPositionMm;
+                int mappingStartTargetPulse = (int)mappingStartPositionMm;
+
+                Debug.WriteLine($"Using mapping start position from Position Table {FOUPCtrl.Models.Settings.Instance.CurrentProfile.PositionTableNo}:");
+                Debug.WriteLine($"  Position: {mappingStartPositionMm}mm ({mappingStartTargetPulse} pulses)");
+                Debug.WriteLine($"  Active Type: {FOUPCtrl.Models.Settings.Instance.ActiveMappingType} ({FOUPCtrl.Models.Settings.Instance.CurrentProfile.Name})");
+
+                // First, ensure elevator is at top position (home)
+                Debug.WriteLine("Moving elevator to top position first...");
+                bool elevatorUpSuccess = ElevatorUp(token);
+                if (!elevatorUpSuccess)
+                {
+                    _errorMessage = "Failed to move elevator to top position before mapping start position.";
+                    Debug.WriteLine(_errorMessage);
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Set absolute position to 0 at top
+                Debug.WriteLine("Setting absolute position to 0 at top position...");
+                CardStatus status = _credenAxisCard.SetAbsPosition(3, 0);
+                if (status != CardStatus.Successful)
+                {
+                    _errorMessage = $"Failed to set absolute position to 0: {status}";
+                    Debug.WriteLine(_errorMessage);
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Wait for position setting to take effect
+                Thread.Sleep(200);
+
+                Debug.WriteLine($"Moving elevator to mapping start position: {mappingStartTargetPulse} pulses...");
+
+                // Get current position
+                int currentPosition = 0;
+                status = _credenAxisCard.GetAbsPosition(3, ref currentPosition);
+                if (status != CardStatus.Successful)
+                {
+                    _errorMessage = $"Failed to read current position: {status}";
+                    Debug.WriteLine(_errorMessage);
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                Debug.WriteLine($"Current position: {currentPosition} pulses");
+
+                // Move to mapping start position if not already there
+                if (currentPosition > mappingStartTargetPulse)
+                {
+                    // Use elevator down motors to reach mapping start position
+                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
+                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
+
+                    // Turn on elevator down motors
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, true);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, true);
+
+                    var stopwatch = Stopwatch.StartNew();
+                    bool targetReached = false;
+
+                    while (!targetReached && stopwatch.ElapsedMilliseconds < 10000) // 10 second timeout
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        // Read current position
+                        _credenAxisCard.GetAbsPosition(3, ref currentPosition);
+
+                        if (currentPosition <= mappingStartTargetPulse)
+                        {
+                            targetReached = true;
+                            Debug.WriteLine($"Mapping start position reached: {currentPosition} pulses");
+                        }
+
+                        Thread.Sleep(10); // Small delay to prevent excessive polling
+                    }
+
+                    // Turn off elevator motors
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
+
+                    if (!targetReached)
+                    {
+                        _errorMessage = $"Failed to reach mapping start position within timeout. Current: {currentPosition}, Target: {mappingStartTargetPulse}";
+                        Debug.WriteLine(_errorMessage);
+                        m_status[3] = (char)Operation.Stopping;
+                        return false;
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine($"Already at or below mapping start position. Current: {currentPosition}, Target: {mappingStartTargetPulse}");
+                }
+
+                // Wait for system to stabilize
+                Thread.Sleep(500);
+
+                // Verify final position
+                _credenAxisCard.GetAbsPosition(3, ref currentPosition);
+                Debug.WriteLine($"Final position: {currentPosition} pulses ({currentPosition * FOUPCtrl.Models.Settings.Instance.MmPerPulse:F2}mm)");
+
+                // Set operation status to stopping
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("Elevator mapping start position operation completed successfully");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _errorMessage = "Elevator mapping start position operation was canceled.";
+                Debug.WriteLine(_errorMessage);
+
+                // Safely stop any ongoing motor operations
+                try
+                {
+                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
+                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error stopping motors during cancellation: {ex.Message}");
+                }
+
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Error during elevator mapping start position operation: {ex.Message}";
+                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
+
+                // Safely stop any ongoing motor operations
+                try
+                {
+                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
+                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
+                }
+                catch (Exception motorEx)
+                {
+                    Debug.WriteLine($"Error stopping motors during exception handling: {motorEx.Message}");
+                }
+
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Moves the elevator to the mapping end position using values from the current position table
+        /// </summary>
+        /// <param name="token">Cancellation token for the operation</param>
+        /// <returns>True if the elevator successfully reached the mapping end position, false otherwise</returns>
+        public bool ElevatorMappingEndPosition(CancellationToken token)
+        {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
+            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
+            {
+                _errorMessage = "Not all cards are connected - cannot move to mapping end position.";
+                Debug.WriteLine(_errorMessage);
+                return false;
+            }
+
+            try
+            {
+                Debug.WriteLine("Starting elevator mapping end position operation...");
+
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Get the mapping end position from the current position table based on active mapping type
+                double mappingEndPositionMm = FOUPCtrl.Models.Settings.Instance.CurrentPositionTable.MapEndPositionMm;
+                int mappingEndTargetPulse = (int)mappingEndPositionMm;
+
+                Debug.WriteLine($"Using mapping end position from Position Table {FOUPCtrl.Models.Settings.Instance.CurrentProfile.PositionTableNo}:");
+                Debug.WriteLine($"  Position: {mappingEndPositionMm}mm ({mappingEndTargetPulse} pulses)");
+                Debug.WriteLine($"  Active Type: {FOUPCtrl.Models.Settings.Instance.ActiveMappingType} ({FOUPCtrl.Models.Settings.Instance.CurrentProfile.Name})");
+
+                // First, ensure elevator is at top position (home)
+                Debug.WriteLine("Moving elevator to top position first...");
+                bool elevatorUpSuccess = ElevatorUp(token);
+                if (!elevatorUpSuccess)
+                {
+                    _errorMessage = "Failed to move elevator to top position before mapping end position.";
+                    Debug.WriteLine(_errorMessage);
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Set absolute position to 0 at top
+                Debug.WriteLine("Setting absolute position to 0 at top position...");
+                CardStatus status = _credenAxisCard.SetAbsPosition(3, 0);
+                if (status != CardStatus.Successful)
+                {
+                    _errorMessage = $"Failed to set absolute position to 0: {status}";
+                    Debug.WriteLine(_errorMessage);
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Wait for position setting to take effect
+                Thread.Sleep(200);
+
+                Debug.WriteLine($"Moving elevator to mapping end position: {mappingEndTargetPulse} pulses...");
+
+                // Get current position
+                int currentPosition = 0;
+                status = _credenAxisCard.GetAbsPosition(3, ref currentPosition);
+                if (status != CardStatus.Successful)
+                {
+                    _errorMessage = $"Failed to read current position: {status}";
+                    Debug.WriteLine(_errorMessage);
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                Debug.WriteLine($"Current position: {currentPosition} pulses");
+
+                // Move to mapping end position if not already there
+                if (currentPosition > mappingEndTargetPulse)
+                {
+                    // Use elevator down motors to reach mapping end position
+                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
+                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
+
+                    // Turn on elevator down motors
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, true);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, true);
+
+                    var stopwatch = Stopwatch.StartNew();
+                    bool targetReached = false;
+
+                    while (!targetReached && stopwatch.ElapsedMilliseconds < 15000) // 15 second timeout (longer for deeper movement)
+                    {
+                        token.ThrowIfCancellationRequested();
+
+                        // Read current position
+                        _credenAxisCard.GetAbsPosition(3, ref currentPosition);
+
+                        if (currentPosition <= mappingEndTargetPulse)
+                        {
+                            targetReached = true;
+                            Debug.WriteLine($"Mapping end position reached: {currentPosition} pulses");
+                        }
+
+                        Thread.Sleep(10); // Small delay to prevent excessive polling
+                    }
+
+                    // Turn off elevator motors
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
+
+                    if (!targetReached)
+                    {
+                        _errorMessage = $"Failed to reach mapping end position within timeout. Current: {currentPosition}, Target: {mappingEndTargetPulse}";
+                        Debug.WriteLine(_errorMessage);
+                        m_status[3] = (char)Operation.Stopping;
+                        return false;
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine($"Already at or below mapping end position. Current: {currentPosition}, Target: {mappingEndTargetPulse}");
+                }
+
+                // Wait for system to stabilize
+                Thread.Sleep(500);
+
+                // Verify final position
+                _credenAxisCard.GetAbsPosition(3, ref currentPosition);
+                Debug.WriteLine($"Final position: {currentPosition} pulses ({currentPosition * FOUPCtrl.Models.Settings.Instance.MmPerPulse:F2}mm)");
+
+                // Set operation status to stopping
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("Elevator mapping end position operation completed successfully");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                _errorMessage = "Elevator mapping end position operation was canceled.";
+                Debug.WriteLine(_errorMessage);
+
+                // Safely stop any ongoing motor operations
+                try
+                {
+                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
+                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error stopping motors during cancellation: {ex.Message}");
+                }
+
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Error during elevator mapping end position operation: {ex.Message}";
+                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
+
+                // Safely stop any ongoing motor operations
+                try
+                {
+                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
+                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
+                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
+                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
+                }
+                catch (Exception motorEx)
+                {
+                    Debug.WriteLine($"Error stopping motors during exception handling: {motorEx.Message}");
+                }
+
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Converts the mapping analysis result to a string format showing wafer status for each slot
+        /// </summary>
+        /// <param name="analysisResult">The mapping analysis result to convert</param>
+        /// <returns>String representation of wafer status (e.g., "0000000000000000000000000")</returns>
+        public string GetMappingResultString(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
+        {
+            if (analysisResult?.WaferStatus == null)
+            {
+                Debug.WriteLine("GetMappingResultString: Analysis result or wafer status is null");
+                return "".PadLeft(25, '9'); // Return error status for all slots
+            }
+
+            var result = new System.Text.StringBuilder();
+
+            for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
+            {
+                // Convert wafer status to single character using traditional switch statement
+                // 0 = Empty, 1 = Normal, 2 = Crossed, 3 = Thick, 4 = Thin, 5 = Position Error, 99 = Error
+                char statusChar;
+                switch (analysisResult.WaferStatus[i])
+                {
+                    case 0:
+                        statusChar = '0';  // Empty
+                        break;
+                    case 1:
+                        statusChar = '1';  // Normal
+                        break;
+                    case 2:
+                        statusChar = '2';  // Crossed
+                        break;
+                    case 3:
+                        statusChar = '3';  // Thick
+                        break;
+                    case 4:
+                        statusChar = '4';  // Thin
+                        break;
+                    case 5:
+                        statusChar = '5';  // Position Error
+                        break;
+                    case 99:
+                        statusChar = '9';  // Error
+                        break;
+                    default:
+                        statusChar = '9';  // Unknown - treat as error
+                        break;
+                }
+
+                result.Append(statusChar);
+            }
+
+            string mappingResult = result.ToString();
+            Debug.WriteLine($"Mapping result: {mappingResult}");
+            Debug.WriteLine($"GetMappingResult returning: '{mappingResult}' (Length: {mappingResult.Length})");
+
+            return mappingResult;
+        }
     }
 }
