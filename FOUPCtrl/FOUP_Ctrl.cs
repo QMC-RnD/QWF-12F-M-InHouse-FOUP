@@ -69,7 +69,7 @@ namespace FoupControl
         private int DoorBackwardLimit = 11; // Read from card2
         private int MappingForwardLimit = 12; // Read from card2
         private int MappingBackwardLimit = 13; // Read from card2
-        private int VacuumSensorInputBit = 8; // Read from card2
+        private int VacuumSensorInputBit = 8; // Read from card1, bit 8 (port 1, bit 0)
         private int ProtrusionSensor = 7;   // Read from card1
 
         // Control output bit positions
@@ -87,7 +87,8 @@ namespace FoupControl
         private int DockBackwardOutput = 8; // Bit 8 on port 2 - activates dock backward
         private int MappingForwardOutput = 14; // Bit 14 on port 2 - activates mapping forward
         private int MappingBackwardOutput = 15; // Bit 15 on port 2 - activates mapping backward
-        private int VacuumOutput = 0;       // Bit 0 on port 2 - activates vacuum
+        private int VacuumValve1A = 0;      // Bit 0 on port 2 - VACUUM VALVE 1A (release vacuum)
+        private int VacuumValve1B = 1;      // Bit 1 on port 2 - VACUUM VALVE 1B (apply vacuum)
 
         #endregion
 
@@ -144,7 +145,8 @@ namespace FoupControl
             public int DockBackward { get; set; }
             public int MappingForward { get; set; }
             public int MappingBackward { get; set; }
-            public int Vacuum { get; set; }
+            public int VacuumValve1A { get; set; }
+            public int VacuumValve1B { get; set; }
         }
 
         public struct OutputStatus
@@ -209,7 +211,8 @@ namespace FoupControl
             _outputList.DockBackward = DockBackwardOutput;
             _outputList.MappingForward = MappingForwardOutput;
             _outputList.MappingBackward = MappingBackwardOutput;
-            _outputList.Vacuum = VacuumOutput;
+            _outputList.VacuumValve1A = VacuumValve1A;
+            _outputList.VacuumValve1B = VacuumValve1B;
 
             InitializeStatus();
 
@@ -527,6 +530,7 @@ namespace FoupControl
             DigitalRead(_credenIOCard1, 1, ref readByte);
             _sensorStatus.StatusDockForward = (readByte & (1 << (DockForwardLimit - 8))) != 0 ? 1 : 0;
             _sensorStatus.StatusDockBackward = (readByte & (1 << (DockBackwardLimit - 8))) != 0 ? 1 : 0;
+            _sensorStatus.StatusVacuum = (readByte & (1 << (VacuumSensorInputBit - 8))) != 0 ? 1 : 0;
 
             // Read from card 2, port 0 (first 8 inputs: 0-7)
             DigitalRead(_credenIOCard2, 0, ref readByte);
@@ -541,10 +545,10 @@ namespace FoupControl
             _sensorStatus.StatusMappingForward = (readByte & (1 << (MappingForwardLimit - 8))) != 0 ? 1 : 0;
             _sensorStatus.StatusMappingBackward = (readByte & (1 << (MappingBackwardLimit - 8))) != 0 ? 1 : 0;
 
-            // Debug output
-            //Debug.WriteLine($"Clamp: {_sensorStatus.StatusClamp}, Unclamp: {_sensorStatus.StatusUnclamp}, Latch: {_sensorStatus.StatusLatch}, Unlatch: {_sensorStatus.StatusUnlatch}");
+            // Update m_status array based on sensor readings and system state
 
-            // Update status arrays based on sensor readings
+            // Position 0: Error Status (Machine Status)
+            // Keep existing logic for error detection
             if ((_sensorStatus.StatusClamp == 1) && (_sensorStatus.StatusUnclamp == 1))
             {
                 m_status[7] = (char)ClampStatus.Indefinite;
@@ -576,6 +580,14 @@ namespace FoupControl
                 else
                     m_status[8] = (char)LatchStatus.Indefinite;
             }
+
+            // Position 9: Vacuum Status
+            m_status[9] = _sensorStatus.StatusVacuum == 1 ? (char)VacuumStatus.On : (char)VacuumStatus.Off;
+
+            // Position 10: Door Position
+            if (_sensorStatus.StatusDoorForward == 1)
+            {
+                m_status[10] = (char)DoorPosition.Open;
         }
 
         #endregion
@@ -2599,44 +2611,86 @@ namespace FoupControl
         // Vacuum On operation
         public bool VacuumOn(CancellationToken token)
         {
-            if (!ConnectionIOCard2)
-                return false;
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
 
-            byte writeByte = 0;
-            // Set the vacuum output bit using the helper method.
-            writeByte = SetBit(writeByte, _outputList.Vacuum);
+            if (!ConnectionIOCard1)
+                return false;
 
             try
             {
-                // Determine port ID based on the output bit.
-                int portId = _outputList.Vacuum < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard2, portId, writeByte);
+                // Use global constant for VACUUM VALVE 1B
+                int portId = VacuumValve1B < 8 ? 2 : 3;
+
+                // Turn ON VACUUM VALVE 1B (Bit 1)
+            byte writeByte = 0;
+                writeByte = SetBit(writeByte, VacuumValve1B);
+
+                Debug.WriteLine("Turning ON VACUUM VALVE 1B (Card 1, Bit 1)");
+                DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
+
+                // Keep the valve ON and monitor the vacuum sensor
                 while (_sensorStatus.StatusVacuum == 0)
                 {
                     token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
+
+                    // Only timeout if sensor doesn't turn to 1 within the timeout period
                     if (elapsedMS > 1500)
                     {
-                        throw new TimeoutException("Vacuum On Timeover");
+                        throw new TimeoutException("Vacuum sensor did not activate - Vacuum On Timeover");
                     }
+
+                    // Update sensor status to check vacuum sensor
                     UpdateSensorStatus();
                 }
 
-                // For vacuum, we leave the output on after it is engaged.
+                // Vacuum sensor has turned to 1, turn OFF VACUUM VALVE 1B
+                Debug.WriteLine("Vacuum sensor activated, turning OFF VACUUM VALVE 1B (Card 1, Bit 1)");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
                 return true;
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
-                DigitalWrite(_credenIOCard2, _outputList.Vacuum < 8 ? 2 : 3, (byte)0);
+                // On timeout (sensor didn't activate), turn on VACUUM VALVE 1A (Bit 0) to close vacuum
+                Debug.WriteLine($"Timeout occurred: {ex.Message} - activating VACUUM VALVE 1A (Card 1, Bit 0) to close vacuum");
+
+                try
+                {
+                    int valve1APortId = VacuumValve1A < 8 ? 2 : 3;
+
+                    // Turn ON VACUUM VALVE 1A (Bit 0)
+                    byte valve1AWriteByte = 0;
+                    valve1AWriteByte = SetBit(valve1AWriteByte, VacuumValve1A);
+
+                    Debug.WriteLine("Turning ON VACUUM VALVE 1A (Card 1, Bit 0) to close vacuum");
+                    DigitalWrite(_credenIOCard1, valve1APortId, valve1AWriteByte);
+
+                    // Brief delay to ensure valve activates
+                    Thread.Sleep(100);
+
+                    // Immediately turn OFF VACUUM VALVE 1A
+                    Debug.WriteLine("Immediately turning OFF VACUUM VALVE 1A (Card 1, Bit 0)");
+                    DigitalWrite(_credenIOCard1, valve1APortId, (byte)0);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Debug.WriteLine($"Error during timeout vacuum valve 1A operation: {cleanupEx.Message}");
+                }
+
+                // Ensure all outputs are turned off
+                DigitalWrite(_credenIOCard1, 2, (byte)0);
                 sErrorCode = ErrorCode.Error_Vacuum_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
+                _errorMessage = "Vacuum sensor failed to activate within timeout period";
                 return false;
             }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard2, _outputList.Vacuum < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, 2, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
@@ -2646,38 +2700,70 @@ namespace FoupControl
         // Vacuum Off operation
         public bool VacuumOff(CancellationToken token)
         {
-            if (!ConnectionIOCard2)
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
+            if (!ConnectionIOCard1)
                 return false;
 
             try
             {
-                // Determine port ID based on the vacuum output bit.
-                int portId = _outputList.Vacuum < 8 ? 2 : 3;
-                // Clear the vacuum output.
-                DigitalWrite(_credenIOCard2, portId, (byte)0);
+                // Use global constant for VACUUM VALVE 1A
+                int portId = VacuumValve1A < 8 ? 2 : 3;
+
+                // Turn ON VACUUM VALVE 1A (Bit 0)
+                byte writeByte = 0;
+                writeByte = SetBit(writeByte, VacuumValve1A);
+
+                Debug.WriteLine("Turning ON VACUUM VALVE 1A (Card 1, Bit 0) to release vacuum");
+                DigitalWrite(_credenIOCard1, portId, writeByte);
+
+                // Brief delay to ensure valve activates and releases vacuum
+                Thread.Sleep(200);
 
                 var stopwatch = Stopwatch.StartNew();
                 while (_sensorStatus.StatusVacuum == 1)
                 {
                     token.ThrowIfCancellationRequested();
-                    UpdateSensorStatus();
+                    long elapsedMS = stopwatch.ElapsedMilliseconds;
 
-                    if (stopwatch.ElapsedMilliseconds > 1500)
+                    // Check for timeout
+                    if (elapsedMS > 1500)
                     {
-                        throw new TimeoutException("Vacuum Off Timeover");
+                        throw new TimeoutException("Vacuum Off Timeover - Vacuum sensor did not deactivate");
                     }
+
+                    // Update sensor status to check vacuum sensor
+                    UpdateSensorStatus();
                 }
+
+                // Vacuum sensor has turned to 0 (vacuum released), turn OFF VACUUM VALVE 1A
+                Debug.WriteLine("Vacuum sensor deactivated, turning OFF VACUUM VALVE 1A (Card 1, Bit 0)");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
 
                 return true;
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
+                Debug.WriteLine($"Timeout occurred: {ex.Message}");
+
+                // Ensure valve is turned off even on timeout
+                int portId = VacuumValve1A < 8 ? 2 : 3;
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
                 sErrorCode = ErrorCode.Error_Vacuum_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
+                _errorMessage = "Vacuum sensor failed to deactivate within timeout period";
                 return false;
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"Error during vacuum off operation: {ex.Message}");
+
+                // Ensure valve is turned off on any exception
+                int portId = VacuumValve1A < 8 ? 2 : 3;
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
                 _errorMessage = ex.Message;
                 return false;
             }
