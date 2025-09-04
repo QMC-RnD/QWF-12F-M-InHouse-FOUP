@@ -5249,6 +5249,13 @@ namespace FoupControl
                         Debug.WriteLine($"Raw data export failed: {_errorMessage}");
                 }
 
+                // **** DISPLAY MAPPING RESULT IN DESIRED FORMAT ****
+                string mappingResultString = GetMappingResultString(analysisResult);
+                Debug.WriteLine($"=== MAPPING RESULT FORMAT ===");
+                Debug.WriteLine($"Mapping result: {mappingResultString}");
+                Debug.WriteLine($"Result length: {mappingResultString.Length}");
+                Debug.WriteLine($"=== END MAPPING RESULT ===");
+
                 Debug.WriteLine("MappingOperation_UpToDown_WithAnalysis completed successfully.");
                 return analysisResult;
             }
