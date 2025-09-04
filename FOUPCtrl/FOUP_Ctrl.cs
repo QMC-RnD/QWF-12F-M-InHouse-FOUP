@@ -852,184 +852,110 @@ namespace FoupControl
 
         public bool Latch(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
-            // Check for connection and get initial status
+            byte writeByte = 0;
             UpdateSensorStatus();
 
-            // First check if already at target position
-            if (_sensorStatus.StatusLatch == 1)
-            {
-                Debug.WriteLine("Latch operation skipped - already latched");
-                return true;  // Already latched, nothing to do
-            }
+            // Follow the same conditional logic pattern as Clamp
+            if (_sensorStatus.StatusLatch == 0)
+                writeByte = SetBit(writeByte, _outputList.Latch);
+            else
+                writeByte = ClearBit(writeByte, _outputList.Latch);
 
             try
             {
                 // Determine port ID based on output bit
                 int portId = _outputList.Latch < 8 ? 2 : 3;
-                byte writeByte = 0;
 
-                // Set the latch bit
-                writeByte = SetBit(writeByte, _outputList.Latch);
-
-                // Turn on the actuator
-                Debug.WriteLine($"Starting Latch operation - activating output on port {portId}");
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
-                bool sensorActivated = false;
-
-                // Begin monitoring loop with MORE FREQUENT sensor checking
-                while (!sensorActivated && !token.IsCancellationRequested)
+                while (_sensorStatus.StatusLatch == 0)
                 {
-                    // Check for timeout
+                    token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
                     if (elapsedMS > latchTimeOver)
                     {
                         throw new TimeoutException("Latch Timeover");
                     }
 
-                    // Update sensor readings MORE FREQUENTLY
                     UpdateSensorStatus();
-
-                    // Check if sensor activated
-                    if (_sensorStatus.StatusLatch == 1)
-                    {
-                        sensorActivated = true;
-                        Debug.WriteLine($"Latch sensor activated at {elapsedMS}ms");
-                        break;
                     }
 
-                    // Small delay to prevent CPU thrashing while still checking frequently
-                    Thread.Sleep(5);
-                }
-
-                // We got out of the loop - immediately turn off the output
-                Debug.WriteLine("Immediately turning off latch output");
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                // Verify sensor is still active after turning off the output
-                UpdateSensorStatus();
-                if (_sensorStatus.StatusLatch != 1)
-                {
-                    Debug.WriteLine("WARNING: Latch sensor deactivated after turning off output!");
+                return true;
                 }
-
-                return sensorActivated;
-            }
             catch (TimeoutException)
             {
-                // Ensure outputs are disabled on timeout
-                int portId = _outputList.Latch < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
+                DigitalWrite(_credenIOCard1, _outputList.Latch < 8 ? 2 : 3, (byte)0);
                 sErrorCode = ErrorCode.Error_Latch_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
-                Debug.WriteLine("Latch operation timed out");
                 return false;
             }
             catch (Exception ex)
             {
-                // Ensure outputs are disabled on any exception
-                int portId = _outputList.Latch < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
+                DigitalWrite(_credenIOCard1, _outputList.Latch < 8 ? 2 : 3, (byte)0);
                 _errorMessage = ex.Message;
-                Debug.WriteLine($"Latch operation failed: {ex.Message}");
                 return false;
             }
         }
 
         public bool Unlatch(CancellationToken token)
         {
+            // Clear any previous error messages
+            _errorMessage = string.Empty;
+
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
-            // Check for connection and get initial status
+            byte writeByte = 0;
             UpdateSensorStatus();
 
-            // First check if already at target position
-            if (_sensorStatus.StatusUnlatch == 1)
-            {
-                Debug.WriteLine("Unlatch operation skipped - already unlatched");
-                return true;  // Already unlatched, nothing to do
-            }
+            // Follow the same conditional logic pattern as Clamp and Latch
+            if (_sensorStatus.StatusUnlatch == 0)
+                writeByte = SetBit(writeByte, _outputList.Unlatch);
+            else
+                writeByte = ClearBit(writeByte, _outputList.Unlatch);
 
             try
             {
                 // Determine port ID based on output bit
                 int portId = _outputList.Unlatch < 8 ? 2 : 3;
-                byte writeByte = 0;
 
-                // Set the unlatch bit
-                writeByte = SetBit(writeByte, _outputList.Unlatch);
-
-                // Turn on the actuator
-                Debug.WriteLine($"Starting Unlatch operation - activating output on port {portId}");
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
-                bool sensorActivated = false;
-
-                // Begin monitoring loop with MORE FREQUENT sensor checking
-                while (!sensorActivated && !token.IsCancellationRequested)
+                while (_sensorStatus.StatusUnlatch == 0)
                 {
-                    // Check for timeout
+                    token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
                     if (elapsedMS > latchTimeOver)
                     {
                         throw new TimeoutException("Unlatch Timeover");
                     }
 
-                    // Update sensor readings MORE FREQUENTLY
                     UpdateSensorStatus();
-
-                    // Check if sensor activated
-                    if (_sensorStatus.StatusUnlatch == 1)
-                    {
-                        sensorActivated = true;
-                        Debug.WriteLine($"Unlatch sensor activated at {elapsedMS}ms");
-                        break;
                     }
 
-                    // Small delay to prevent CPU thrashing while still checking frequently
-                    Thread.Sleep(5);
-                }
-
-                // We got out of the loop - immediately turn off the output
-                Debug.WriteLine("Immediately turning off unlatch output");
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                // Verify sensor is still active after turning off the output
-                UpdateSensorStatus();
-                if (_sensorStatus.StatusUnlatch != 1)
-                {
-                    Debug.WriteLine("WARNING: Unlatch sensor deactivated after turning off output!");
+                return true;
                 }
-
-                return sensorActivated;
-            }
             catch (TimeoutException)
             {
-                // Ensure outputs are disabled on timeout
-                int portId = _outputList.Unlatch < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
+                DigitalWrite(_credenIOCard1, _outputList.Unlatch < 8 ? 2 : 3, (byte)0);
                 sErrorCode = ErrorCode.Error_Unlatch_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
-                Debug.WriteLine("Unlatch operation timed out");
                 return false;
             }
             catch (Exception ex)
             {
-                // Ensure outputs are disabled on any exception
-                int portId = _outputList.Unlatch < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
+                DigitalWrite(_credenIOCard1, _outputList.Unlatch < 8 ? 2 : 3, (byte)0);
                 _errorMessage = ex.Message;
-                Debug.WriteLine($"Unlatch operation failed: {ex.Message}");
                 return false;
             }
         }
