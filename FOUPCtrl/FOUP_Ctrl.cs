@@ -1,4 +1,8 @@
-﻿using Creden.Hardware.Cards;
+﻿#if x64
+using Creden.Hardware64.Cards;
+#else
+using Creden.Hardware.Cards;
+#endif
 using FOUPCtrl;
 using FOUPCtrl.Properties;
 using System;
@@ -209,9 +213,9 @@ namespace FoupControl
 
             InitializeStatus();
 
-            #if X64
-                        _credenIOCard1 = new Creden.Hardware.Cards.IO1616Card();
-                        _credenIOCard2 = new Creden.Hardware.Cards.IO1616Card();
+            #if x64
+                        _credenIOCard1 = new Creden.Hardware64.Cards.IO1616Card();
+                        _credenIOCard2 = new Creden.Hardware64.Cards.IO1616Card();
             #else
                         _credenIOCard1 = new Creden.Hardware.Cards.IO1616Card();
                         _credenIOCard2 = new Creden.Hardware.Cards.IO1616Card();

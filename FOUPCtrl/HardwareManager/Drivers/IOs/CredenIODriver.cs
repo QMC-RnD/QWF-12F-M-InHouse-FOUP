@@ -1,4 +1,8 @@
-﻿using Creden.Hardware.Cards;
+﻿#if x64
+using Creden.Hardware64.Cards;
+#else
+using Creden.Hardware.Cards;
+#endif
 using FOUPCtrl.Hardware;
 using System;
 using System.Collections.Generic;
