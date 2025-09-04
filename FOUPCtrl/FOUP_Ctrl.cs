@@ -3289,6 +3289,17 @@ namespace FoupControl
             new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
         };
 
+        private List<SequenceStep> GetOriginSteps() => new List<SequenceStep>
+        {
+            //new SequenceStep { Name = "Elevator Up", Operation = ElevatorUp },
+            new SequenceStep { Name = "Mapping Off", Operation = MappingForward },
+            //new SequenceStep { Name = "Door Backward", Operation = DoorBackward },
+            new SequenceStep { Name = "Unlatch", Operation = Unlatch },
+            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
+            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
+            new SequenceStep { Name = "Unclamp", Operation = Unclamp }
+        };
+
         // Helper: Validate mapping analysis result
         private bool ValidateAnalysisResult(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
         {
