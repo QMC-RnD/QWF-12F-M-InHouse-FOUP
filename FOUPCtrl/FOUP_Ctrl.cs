@@ -5533,7 +5533,7 @@ namespace FoupControl
         // Add these methods to the FOUP_Ctrl class
 
         /// <summary>
-        /// Executes the origin command - moves elevator to top position and sets position to 0
+        /// Executes the origin command using dedicated origin steps sequence
         /// </summary>
         /// <param name="token">Cancellation token</param>
         /// <returns>True if successful, false otherwise</returns>
@@ -5541,36 +5541,73 @@ namespace FoupControl
         {
             try
             {
-                Debug.WriteLine("Moving elevator to origin position...");
+                // Clear any previous error messages at the start
+                _errorMessage = string.Empty;
 
-                bool elevatorUpSuccess = await Task.Run(() => ElevatorUp(token));
-                if (!elevatorUpSuccess)
+                Debug.WriteLine("Executing origin command using dedicated origin steps sequence...");
+
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Get the dedicated origin steps
+                var originSteps = GetOriginSteps();
+
+                // Execute each step in the sequence
+                foreach (var step in originSteps)
                 {
-                    _errorMessage = "Failed to move elevator to the top position.";
-                    Debug.WriteLine(_errorMessage);
+                    if (step.IsRequired)
+                    {
+                        Debug.WriteLine($"Executing origin step: {step.Name}");
+
+                        bool success = step.Operation(token);
+                        if (!success)
+                        {
+                            // Use a local error message to avoid contaminating global state
+                            string localErrorMessage = $"Origin operation failed at step: {step.Name}";
+                            Debug.WriteLine(localErrorMessage);
+                            m_status[3] = (char)Operation.Stopping;
+
+                            // Only set global error if it's currently empty
+                            if (string.IsNullOrEmpty(_errorMessage))
+                {
+                                _errorMessage = localErrorMessage;
+                            }
+
                     return false;
                 }
 
-                await Task.Delay(500, token);
+                        // Add delay between steps
+                        await Task.Delay(DelayBetweenTask, token);
+                    }
+                }
 
+                // Clear error message on successful completion
+                _errorMessage = string.Empty;
+
+                // After executing the origin steps, set absolute position to 0
+                Debug.WriteLine("Setting absolute position to 0 for origin...");
                 if (_credenAxisCard != null)
                 {
                     var status = _credenAxisCard.SetAbsPosition(3, 0);
                     if (status != CardStatus.Successful)
                     {
-                        _errorMessage = $"Failed to set position to 0: {status}";
+                        _errorMessage = $"Failed to set position to 0 during origin: {status}";
                         Debug.WriteLine(_errorMessage);
+                        m_status[3] = (char)Operation.Stopping;
                         return false;
                     }
                 }
 
-                Debug.WriteLine("Elevator moved to origin position successfully.");
+                // Update status to indicate successful origin operation
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Origin command executed successfully using dedicated origin steps sequence.");
                 return true;
             }
             catch (Exception ex)
             {
                 _errorMessage = $"Error during origin operation: {ex.Message}";
                 Debug.WriteLine($"Error during origin operation: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
                 return false;
             }
         }
