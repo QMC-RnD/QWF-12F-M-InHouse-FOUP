@@ -555,29 +555,83 @@ namespace FoupControl
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 sErrorCode = ErrorCode.Error_Clamp_Sensor;
             }
+            else if ((_sensorStatus.StatusLatch == 1) && (_sensorStatus.StatusUnlatch == 1))
+            {
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                sErrorCode = ErrorCode.Error_Latch_Sensor;
+            }
+            else if (sErrorCode != "00")
+            {
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+            }
             else
             {
-                if (_sensorStatus.StatusClamp == 1)
-                    m_status[7] = (char)ClampStatus.Close;
-                else if (_sensorStatus.StatusUnclamp == 1)
-                    m_status[7] = (char)ClampStatus.Open;
+                m_status[0] = (char)MachineStatus.Normal;
+            }
+
+            // Position 1: Mode (keep existing or set based on system state)
+            // m_status[1] is already set in InitializeStatus() - keep current value
+
+            // Position 2: Device Status (Load Status)
+            // m_status[2] is managed by operation sequences - keep current value
+
+            // Position 3: Operating Status (Operation)
+            // m_status[3] is managed by operation sequences - keep current value
+
+            // Position 4-5: Error Code
+            m_status[4] = sErrorCode.Length > 0 ? sErrorCode[0] : '0';
+            m_status[5] = sErrorCode.Length > 1 ? sErrorCode[1] : '0';
+
+            // Position 6: Container Status (based on protrusion sensor and other factors)
+            if (_sensorStatus.StatusProtrusion == 1)
+            {
+                // Check if FOUP is properly mounted (could add more logic here)
+                if (_sensorStatus.StatusDockForward == 1)
+                    m_status[6] = (char)ContainerStatus.Normal_mounting;
                 else
+                    m_status[6] = (char)ContainerStatus.Abnormal_mounting;
+            }
+            else
+            {
+                m_status[6] = (char)ContainerStatus.None;
+            }
+
+            // Position 7: FOUP Clamp Status
+            if ((_sensorStatus.StatusClamp == 1) && (_sensorStatus.StatusUnclamp == 1))
+            {
+                m_status[7] = (char)ClampStatus.Indefinite;
+            }
+            else if (_sensorStatus.StatusClamp == 1)
+            {
+                    m_status[7] = (char)ClampStatus.Close;
+            }
+                else if (_sensorStatus.StatusUnclamp == 1)
+            {
+                    m_status[7] = (char)ClampStatus.Open;
+            }
+                else
+            {
                     m_status[7] = (char)ClampStatus.Indefinite;
             }
 
+            // Position 8: Door Latch Status
             if ((_sensorStatus.StatusLatch == 1) && (_sensorStatus.StatusUnlatch == 1))
             {
                 m_status[8] = (char)LatchStatus.Indefinite;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 sErrorCode = ErrorCode.Error_Latch_Sensor;
             }
-            else
+            else if (_sensorStatus.StatusLatch == 1)
             {
                 if (_sensorStatus.StatusLatch == 1)
                     m_status[8] = (char)LatchStatus.Close;
+            }
                 else if (_sensorStatus.StatusUnlatch == 1)
+            {
                     m_status[8] = (char)LatchStatus.Open;
+            }
                 else
+            {
                     m_status[8] = (char)LatchStatus.Indefinite;
             }
 
@@ -588,6 +642,78 @@ namespace FoupControl
             if (_sensorStatus.StatusDoorForward == 1)
             {
                 m_status[10] = (char)DoorPosition.Open;
+        }
+            else if (_sensorStatus.StatusDoorBackward == 1)
+            {
+                m_status[10] = (char)DoorPosition.Close;
+            }
+            else
+            {
+                m_status[10] = (char)DoorPosition.Indefinite;
+            }
+
+            // Position 11: Wafer Protrusion Sensor
+            m_status[11] = _sensorStatus.StatusProtrusion == 1 ? (char)WaferProtrusionSensor.No_protrude : (char)WaferProtrusionSensor.Protrude;
+
+            // Position 12: Elevator Axis Position
+            if (_sensorStatus.StatusElevatorUp == 1)
+            {
+                m_status[12] = (char)ZAxisPosition.Up_position;
+            }
+            else if (_sensorStatus.StatusElevatorDown == 1)
+            {
+                m_status[12] = (char)ZAxisPosition.Down_position;
+            }
+            else
+            {
+                m_status[12] = (char)ZAxisPosition.Indefinite;
+            }
+
+            // Position 13: Dock Position
+            if (_sensorStatus.StatusDockForward == 1)
+            {
+                m_status[13] = (char)DockPosition.Dock;
+            }
+            else if (_sensorStatus.StatusDockBackward == 1)
+            {
+                m_status[13] = (char)DockPosition.Undock;
+            }
+            else
+            {
+                m_status[13] = (char)DockPosition.Indefinite;
+            }
+
+            // Position 14: Reserve (keep existing value or set to '0')
+            m_status[14] = '0';
+
+            // Position 15: Mapping Position
+            if (_sensorStatus.StatusMappingForward == 1)
+            {
+                m_status[15] = (char)MappingPosition.Waiting_position;
+            }
+            else if (_sensorStatus.StatusMappingBackward == 1)
+            {
+                m_status[15] = (char)MappingPosition.Measuring_position;
+            }
+            else
+            {
+                m_status[15] = (char)MappingPosition.Indefinite;
+            }
+
+            // Position 16: Reserve (keep existing value or set to '0')
+            m_status[16] = '0';
+
+            // Position 17: Mapping Status (managed by mapping operations - keep current value)
+            // m_status[17] is set by mapping operations
+
+            // Position 18: Type (managed by mapping operations or configuration - keep current value)
+            // m_status[18] is set by mapping type selection
+
+            // Position 19: Reserve (keep existing value or set to '0')
+            m_status[19] = '0';
+
+            // Debug output (optional - can be removed in production)
+            //Debug.WriteLine($"Status Updated - Clamp: {_sensorStatus.StatusClamp}, Unclamp: {_sensorStatus.StatusUnclamp}, Latch: {_sensorStatus.StatusLatch}, Unlatch: {_sensorStatus.StatusUnlatch}");
         }
 
         #endregion
