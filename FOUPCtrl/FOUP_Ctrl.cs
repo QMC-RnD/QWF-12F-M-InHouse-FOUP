@@ -24,7 +24,7 @@ namespace FoupControl
         }
         #region Constants and Fields
         private int clampTimeOver = 700;
-        private int latchTimeOver = 1500;
+        private int latchTimeOver = 2400;
         private int DelayBetweenTask = 1000;
         private List<DataPoint> _mappingData = new List<DataPoint>();
 
