@@ -47,13 +47,9 @@ namespace FOUPCtrl
         public const string Error_Unloading_Timeover = "22";
         public const string Error_Positioning_Timeover = "23";
         public const string Error_Mapping = "24";
-
-
-        // ADD THESE MISSING ONES:
-        public const string Error_Elevator_Timeover = "25";      // For ElevatorUp/Down timeouts
-        public const string Error_Door_Timeover = "26";         // For Door operations
-        public const string Error_Mapping_Timeover = "27";      // For Mapping operations
-
+        public const string Error_Elevator_Timeover = "25";
+        public const string Error_Door_Timeover = "26";
+        public const string Error_Mapping_Timeover = "27"; 
         public const string Error_DoorMovement_Timeover = "28";
         public const string Error_MappingStart_Timeover = "29";
         public const string Error_MappingEnd_Timeover = "2A";
@@ -251,5 +247,21 @@ namespace FOUPCtrl
     {
         Shading = '0',
         Lighting = '1'
+    }
+
+    // NEW: Cassette Placement Status enum
+    public enum CassettePlacementStatus
+    {
+        No_Cassette = '0',           // No presence sensors active
+        Properly_Placed = '1',       // Presence sensors 1,2,3 active, diagonal sensors inactive
+        Improper_Placement = '2',    // Any diagonal sensor active (red condition)
+        Partial_Detection = '3',     // Only some presence sensors active
+        Indefinite = '?'            // Cannot determine status
+    }
+    public enum CassettePresenceStatus
+    {
+        None = '0',           // No cassette detected
+        Present = '1',        // Cassette detected
+        Indefinite = '?'      // Cannot determine
     }
 }
