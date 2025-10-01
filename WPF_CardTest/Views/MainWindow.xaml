@@ -561,8 +561,9 @@
                                                                 </StackPanel>
                                                             </Button>
 
+
                                                             <!-- Mapping Start -->
-                                                            <Button Margin="5" Command="{Binding}">
+                                                            <Button Margin="5" Command="{Binding ElevatorMappingStartCommand}">
                                                                 <StackPanel Orientation="Horizontal">
                                                                     <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
                                                                     <TextBlock Text="Mapping Start"/>
@@ -570,9 +571,9 @@
                                                             </Button>
 
                                                             <!-- Mapping End -->
-                                                            <Button Margin="5" Command="{Binding}">
+                                                            <Button Margin="5" Command="{Binding ElevatorMappingEndCommand}">
                                                                 <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="→" FontWeight="Bold" Margin="0,0,5,0"/>
+                                                                    <TextBlock Text="↓" FontWeight="Bold" Margin="0,0,5,0"/>
                                                                     <TextBlock Text="Mapping End"/>
                                                                 </StackPanel>
                                                             </Button>
@@ -671,24 +672,30 @@
 
                                             <GroupBox Grid.Column="0" Header="LED motion" Margin="5">
                                                 <StackPanel>
-                                                    <RadioButton Content="Presence" Margin="5,10,5,5"/>
-                                                    <RadioButton Content="Placement" Margin="5"/>
-                                                    <RadioButton Content="Status 1" Margin="5"/>
-                                                    <RadioButton Content="Status 2" Margin="5"/>
-                                                    <RadioButton Content="Status 3" Margin="5"/>
-                                                    <RadioButton Content="Status 4" Margin="5"/>
-                                                    <RadioButton Content="Load" Margin="5"/>
-                                                    <RadioButton Content="Unload" Margin="5"/>
-                                                    <RadioButton Content="Alarm" Margin="5"/>
-                                                    <RadioButton Content="Manual SW 1" Margin="5"/>
-                                                    <RadioButton Content="Manual SW 2" Margin="5"/>
+                                                    <RadioButton Content="Presence" IsChecked="{Binding IsPresenceSelected}" />
+                                                    <RadioButton Content="Placement" IsChecked="{Binding IsPlacementSelected}" />
+                                                    <RadioButton Content="Status 1" IsChecked="{Binding IsStatus1Selected}" />
+                                                    <RadioButton Content="Status 2" IsChecked="{Binding IsStatus2Selected}" />
+                                                    <RadioButton Content="Status 3" IsChecked="{Binding IsStatus3Selected}" />
+                                                    <RadioButton Content="Status 4" IsChecked="{Binding IsStatus4Selected}" />
+                                                    <RadioButton Content="Load" IsChecked="{Binding IsLoadSelected}" />
+                                                    <RadioButton Content="Unload" IsChecked="{Binding IsUnloadSelected}" />
+                                                    <RadioButton Content="Alarm" IsChecked="{Binding IsAlarmSelected}" />
+                                                    <RadioButton Content="Manual SW 1" IsChecked="{Binding IsManualSW1Selected}" />
+                                                    <RadioButton Content="Manual SW 2" IsChecked="{Binding IsManualSW2Selected}" />
                                                 </StackPanel>
                                             </GroupBox>
 
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                <Button Content="On" Width="80" Height="30" Margin="5"/>
-                                                <Button Content="Blink" Width="80" Height="30" Margin="5"/>
-                                                <Button Content="Off" Width="80" Height="30" Margin="5"/>
+                                                <Button Content="On" Width="80" Height="30" Margin="5" 
+                    Command="{Binding LedOnCommand}"
+                    ToolTip="Turn selected LED ON"/>
+                                                <Button Content="Blink" Width="80" Height="30" Margin="5" 
+                    Command="{Binding LedBlinkCommand}"
+                    ToolTip="Blink selected LED 5 times"/>
+                                                <Button Content="Off" Width="80" Height="30" Margin="5" 
+                    Command="{Binding LedOffCommand}"
+                    ToolTip="Turn selected LED OFF"/>
                                             </StackPanel>
                                         </Grid>
                                     </TabItem>
@@ -1275,7 +1282,7 @@
                 <Button Grid.Row="3" Margin="5">STOP</Button>
                 <Button Grid.Row="4" Margin="5">PAUSE</Button>
                 <Button Grid.Row="5" Margin="5">RETRY</Button>
-                <Button Grid.Row="4" Margin="5">RESET</Button>
+                <Button Grid.Row="4" Margin="5" Command="{Binding ResetErrorCommand}">RESET</Button>
                 <Button Grid.Row="6" Margin="5" Content="Mapping" Command="{Binding MappingWindow}"/>
                 <Button Grid.Row="8" Margin="5">Send</Button>
                 <Button Grid.Row="9" Margin="5">Clear</Button>
