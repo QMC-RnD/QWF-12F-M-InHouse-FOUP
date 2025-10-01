@@ -18,34 +18,8 @@ namespace FoupControl
 {
     public class FOUP_Ctrl
     {
-        public string ErrorMessage
-        {
-            get { return _errorMessage; }
-        }
-        #region Constants and Fields
-        private int clampTimeOver = 700;
-        private int latchTimeOver = 2400;
-        private int DelayBetweenTask = 1000;
-        private List<DataPoint> _mappingData = new List<DataPoint>();
-
-        public IO1616Card _credenIOCard1;
-        public IO1616Card _credenIOCard2;
-        public AX0040Card _credenAxisCard;
-
-        public SensorList _sensorList = new SensorList();
-        public SensorStatus _sensorStatus = new SensorStatus();
-        public OutputList _outputList = new OutputList();
-        public OutputStatus _outputStatus = new OutputStatus();
-
-        private string _errorMessage = String.Empty;
-        public char[] m_status = new char[20];
-        protected string sErrorCode = "00";
-        protected string sInterlockCode = "00";
-        protected string sStatusCode = "00";
-
-        Semaphore semReadPort = new Semaphore(1, 1);
-        Semaphore semWritePort = new Semaphore(1, 1);
-
+        #region Properties and Fields
+        public string ErrorMessage { get { return _errorMessage; } }
         public bool ConnectionIOCard1 { get; private set; }
         public bool ConnectionIOCard2 { get; private set; }
         public byte IOID1 { get; set; }
@@ -56,7 +30,43 @@ namespace FoupControl
         public byte AxisID { get; set; }
         public string AxisComPort { get; set; }
 
-        // Sensor input bit positions
+        #region Motion Timeout Settings
+        private int clampTimeOver = 1500;      // Clamp/Unclamp timeout
+        private int latchTimeOver = 3000;      // Latch/Unlatch timeout
+        private int vacuumTimeOver = 1000;     // Vacuum On/Off timeout
+        private int dockTimeOver = 2500;       // Dock Forward/Backward timeout
+        private int doorTimeOver = 3000;       // Door Forward/Backward timeout
+        private int mappingTimeOver = 1500;    // Mapping Forward/Backward timeout
+        private int elevatorTimeOver = 8000;   // Elevator Up/Down timeout
+        #endregion
+
+        private int DelayBetweenTask = 1000;
+        private List<DataPoint> _mappingData = new List<DataPoint>();
+        public IO1616Card _credenIOCard1;
+        public IO1616Card _credenIOCard2;
+        public AX0040Card _credenAxisCard;
+        public SensorList _sensorList = new SensorList();
+        public SensorStatus _sensorStatus = new SensorStatus();
+        public OutputList _outputList = new OutputList();
+        public OutputStatus _outputStatus = new OutputStatus();
+        private string _errorMessage = String.Empty;
+        public char[] m_status = new char[20];
+        protected string sErrorCode = "00";
+        protected string sInterlockCode = "00";
+        protected string sStatusCode = "00";
+        Semaphore semReadPort = new Semaphore(1, 1);
+        Semaphore semWritePort = new Semaphore(1, 1);
+        private CancellationTokenSource _doorRetentionMonitoringCts;
+        private CancellationTokenSource _airPressureMonitoringCts;
+        private CancellationTokenSource _foupMountSensorMonitoringCts;
+        private CancellationTokenSource _waferProtrusionMonitoringCts;
+        private CancellationTokenSource _foupMountLoadMonitoringCts;
+        private CancellationTokenSource _dockHandPinchMonitoringCts;
+        private CancellationTokenSource _sequenceCancellationTokenSource;
+        public string[] MotionList { get; } = new string[] { "Load", "Unload", "Load (map)", "Unload (map)", "MAP ACAL" };
+        #endregion
+
+        #region Constants and Configuration
         private int ClampSensor = 0;        // Bit 0 on port 0 - reads when clamp is activated
         private int UnclampSensor = 1;      // Bit 1 on port 0 - reads when unclamp is activated
         private int LatchSensor = 6;        // Bit 6 on port 0 - reads when latch is activated
@@ -71,8 +81,6 @@ namespace FoupControl
         private int MappingBackwardLimit = 13; // Read from card2
         private int VacuumSensorInputBit = 8; // Read from card1, bit 8 (port 1, bit 0)
         private int ProtrusionSensor = 7;   // Read from card1
-
-        // Control output bit positions
         private int ClampOutput = 7;        // Bit 7 on port 2 - activates clamp
         private int UnclampOutput = 6;      // Bit 6 on port 2 - activates unclamp
         private int LatchOutput = 12;       // Bit 12 on port 2 - activates latch
@@ -89,10 +97,10 @@ namespace FoupControl
         private int MappingBackwardOutput = 15; // Bit 15 on port 2 - activates mapping backward
         private int VacuumValve1A = 0;      // Bit 0 on port 2 - VACUUM VALVE 1A (release vacuum)
         private int VacuumValve1B = 1;      // Bit 1 on port 2 - VACUUM VALVE 1B (apply vacuum)
-
+        private int DockHandPinchSensor = 4;
         #endregion
 
-        #region Structures
+        #region Structures and Enums
         public struct SensorList
         {
             public int Clamp { get; set; }
@@ -110,7 +118,6 @@ namespace FoupControl
             public int Vacuum { get; set; }
             public int Protrusion { get; set; }
         }
-
         public struct SensorStatus
         {
             public int StatusClamp { get; set; }
@@ -127,8 +134,12 @@ namespace FoupControl
             public int StatusMappingBackward { get; set; }
             public int StatusVacuum { get; set; }
             public int StatusProtrusion { get; set; }
+            public int StatusPresence1And2 { get; set; }
+            public int StatusPresence3 { get; set; }
+            public int StatusPresenceDiagonal1 { get; set; }
+            public int StatusPresenceDiagonal2 { get; set; }
+            public int StatusPressure { get; set; }
         }
-
         public struct OutputList
         {
             public int Clamp { get; set; }
@@ -148,7 +159,6 @@ namespace FoupControl
             public int VacuumValve1A { get; set; }
             public int VacuumValve1B { get; set; }
         }
-
         public struct OutputStatus
         {
             public int StatusClamp { get; set; }
@@ -165,8 +175,6 @@ namespace FoupControl
             public int StatusMappingBackward { get; set; }
             public int StatusVacuum { get; set; }
         }
-
-        // DataPoint class if not already defined elsewhere
         public class DataPoint
         {
             public long TimeMs { get; set; }
@@ -174,10 +182,49 @@ namespace FoupControl
             public int SensorValue { get; set; }
             public double Velocity { get; set; }
         }
-
+        public enum SequenceType
+        {
+            FOUP = 0,
+            Adaptor = 1,
+            FOSB = 3,
+            N2Purge = 5
+        }
+        public enum OperationType
+        {
+            Load,
+            Unload
+        }
+        public class SequenceStep
+        {
+            public string Name { get; set; }
+            public Func<CancellationToken, bool> Operation { get; set; }
+            public bool IsRequired { get; set; } = true;
+        }
         #endregion
 
-        #region Constructor and Destructor
+        #region Exceptions
+        public class SensorErrorException : Exception
+        {
+            public string ErrorCode { get; }
+            public string SensorName { get; }
+
+            public SensorErrorException(string errorCode, string sensorName, string message)
+                : base($"Sensor Error [{errorCode}] {sensorName}: {message}")
+            {
+                ErrorCode = errorCode;
+                SensorName = sensorName;
+            }
+
+            public SensorErrorException(string errorCode, string sensorName, string message, Exception innerException)
+                : base($"Sensor Error [{errorCode}] {sensorName}: {message}", innerException)
+            {
+                ErrorCode = errorCode;
+                SensorName = sensorName;
+            }
+        }
+        #endregion
+
+        #region Constructor and Initialization
         public FOUP_Ctrl()
         {
             // Initialize sensor list
@@ -216,13 +263,13 @@ namespace FoupControl
 
             InitializeStatus();
 
-            #if x64
-                        _credenIOCard1 = new Creden.Hardware64.Cards.IO1616Card();
-                        _credenIOCard2 = new Creden.Hardware64.Cards.IO1616Card();
-            #else
-                        _credenIOCard1 = new Creden.Hardware.Cards.IO1616Card();
-                        _credenIOCard2 = new Creden.Hardware.Cards.IO1616Card();
-            #endif
+#if x64
+                    _credenIOCard1 = new Creden.Hardware64.Cards.IO1616Card();
+                    _credenIOCard2 = new Creden.Hardware64.Cards.IO1616Card();
+#else
+            _credenIOCard1 = new Creden.Hardware.Cards.IO1616Card();
+            _credenIOCard2 = new Creden.Hardware.Cards.IO1616Card();
+#endif
         }
 
 
@@ -258,7 +305,7 @@ namespace FoupControl
         }
         #endregion
 
-        #region Connection Methods
+        #region Connection Management
         public bool Connect()
         {
             try
@@ -342,8 +389,6 @@ namespace FoupControl
                 return false;
             }
         }
-
-        // Modified Disconnect method to include axis card
         public void Disconnect()
         {
             if (ConnectionIOCard1)
@@ -362,17 +407,6 @@ namespace FoupControl
                 ConnectionAxisCard = false;
             }
         }
-
-        public bool IsErrorExist()
-        {
-            if (m_status[0] != (char)MachineStatus.Normal)
-                return true;
-            if (sErrorCode != "00")
-                return true;
-
-            return false;
-        }
-
         public bool Reconnect(int millisecondsToWait, string lastOperation, int attempts = 10)
         {
             // Wait for process or reconnect attempt delay
@@ -398,9 +432,18 @@ namespace FoupControl
             }
             return false;
         }
+        public bool IsErrorExist()
+        {
+            if (m_status[0] != (char)MachineStatus.Normal)
+                return true;
+            if (sErrorCode != "00")
+                return true;
+
+            return false;
+        }
         #endregion
 
-        #region IO Functions
+        #region IO Operations
         private void DigitalRead(IO1616Card card, int portId, ref byte value)
         {
             bool acquired = false;
@@ -518,251 +561,1171 @@ namespace FoupControl
             // Get sensor statuses from both cards
             byte readByte = 0;
 
-            // Read from card 1, port 0 (containing clamp, unclamp, elevator up sensors)
-            DigitalRead(_credenIOCard1, 0, ref readByte);
-            _sensorStatus.StatusClamp = (readByte & (1 << ClampSensor)) != 0 ? 1 : 0;
-            _sensorStatus.StatusUnclamp = (readByte & (1 << UnclampSensor)) != 0 ? 1 : 0;
-            _sensorStatus.StatusElevatorUp = (readByte & (1 << ElevatorUpperLimit)) != 0 ? 1 : 0;
-            _sensorStatus.StatusProtrusion = (readByte & (1 << ProtrusionSensor)) != 0 ? 1 : 0;
-            _sensorStatus.StatusVacuum = (readByte & (1 << VacuumSensorInputBit)) != 0 ? 1 : 0;
-
-            // Read from card 1, port 1 (next 8 inputs: 8-15)
-            DigitalRead(_credenIOCard1, 1, ref readByte);
-            _sensorStatus.StatusDockForward = (readByte & (1 << (DockForwardLimit - 8))) != 0 ? 1 : 0;
-            _sensorStatus.StatusDockBackward = (readByte & (1 << (DockBackwardLimit - 8))) != 0 ? 1 : 0;
-            _sensorStatus.StatusVacuum = (readByte & (1 << (VacuumSensorInputBit - 8))) != 0 ? 1 : 0;
-
-            // Read from card 2, port 0 (first 8 inputs: 0-7)
-            DigitalRead(_credenIOCard2, 0, ref readByte);
-            _sensorStatus.StatusLatch = (readByte & (1 << LatchSensor)) != 0 ? 1 : 0;
-            _sensorStatus.StatusUnlatch = (readByte & (1 << UnlatchSensor)) != 0 ? 1 : 0;
-            _sensorStatus.StatusElevatorDown = (readByte & (1 << ElevatorLowerLimit)) != 0 ? 1 : 0;
-
-            // Read from card 2, port 1 (next 8 inputs: 8-15)
-            DigitalRead(_credenIOCard2, 1, ref readByte);
-            _sensorStatus.StatusDoorForward = (readByte & (1 << (DoorForwardLimit - 8))) != 0 ? 1 : 0;
-            _sensorStatus.StatusDoorBackward = (readByte & (1 << (DoorBackwardLimit - 8))) != 0 ? 1 : 0;
-            _sensorStatus.StatusMappingForward = (readByte & (1 << (MappingForwardLimit - 8))) != 0 ? 1 : 0;
-            _sensorStatus.StatusMappingBackward = (readByte & (1 << (MappingBackwardLimit - 8))) != 0 ? 1 : 0;
-
-            // Update m_status array based on sensor readings and system state
-
-            // Position 0: Error Status (Machine Status)
-            // Keep existing logic for error detection
-            if ((_sensorStatus.StatusClamp == 1) && (_sensorStatus.StatusUnclamp == 1))
+            try
             {
-                m_status[7] = (char)ClampStatus.Indefinite;
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                sErrorCode = ErrorCode.Error_Clamp_Sensor;
-            }
-            else if ((_sensorStatus.StatusLatch == 1) && (_sensorStatus.StatusUnlatch == 1))
-            {
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                sErrorCode = ErrorCode.Error_Latch_Sensor;
-            }
-            else if (sErrorCode != "00")
-            {
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-            }
-            else
-            {
-                m_status[0] = (char)MachineStatus.Normal;
-            }
+                // Read from card 1, port 0 (containing clamp, unclamp, elevator up sensors)
+                DigitalRead(_credenIOCard1, 0, ref readByte);
+                _sensorStatus.StatusClamp = (readByte & (1 << ClampSensor)) != 0 ? 1 : 0;
+                _sensorStatus.StatusUnclamp = (readByte & (1 << UnclampSensor)) != 0 ? 1 : 0;
+                _sensorStatus.StatusElevatorUp = (readByte & (1 << ElevatorUpperLimit)) != 0 ? 1 : 0;
+                _sensorStatus.StatusProtrusion = (readByte & (1 << ProtrusionSensor)) != 0 ? 1 : 0;
+                _sensorStatus.StatusPresence1And2 = (readByte & (1 << 2)) != 0 ? 1 : 0;
+                _sensorStatus.StatusPresence3 = (readByte & (1 << 3)) != 0 ? 1 : 0;
 
-            // Position 1: Mode (keep existing or set based on system state)
-            // m_status[1] is already set in InitializeStatus() - keep current value
+                // Read from card 1, port 1 (next 8 inputs: 8-15)
+                DigitalRead(_credenIOCard1, 1, ref readByte);
+                _sensorStatus.StatusDockForward = (readByte & (1 << (DockForwardLimit - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusDockBackward = (readByte & (1 << (DockBackwardLimit - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusVacuum = (readByte & (1 << (VacuumSensorInputBit - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusPresenceDiagonal1 = (readByte & (1 << (13 - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusPresenceDiagonal2 = (readByte & (1 << (14 - 8))) != 0 ? 1 : 0;
 
-            // Position 2: Device Status (Load Status)
-            // m_status[2] is managed by operation sequences - keep current value
+                // Read from card 2, port 0 (first 8 inputs: 0-7)
+                DigitalRead(_credenIOCard2, 0, ref readByte);
+                _sensorStatus.StatusLatch = (readByte & (1 << LatchSensor)) != 0 ? 1 : 0;
+                _sensorStatus.StatusUnlatch = (readByte & (1 << UnlatchSensor)) != 0 ? 1 : 0;
+                _sensorStatus.StatusElevatorDown = (readByte & (1 << ElevatorLowerLimit)) != 0 ? 1 : 0;
+                _sensorStatus.StatusPressure = (readByte & (1 << 3)) != 0 ? 1 : 0;
 
-            // Position 3: Operating Status (Operation)
-            // m_status[3] is managed by operation sequences - keep current value
+                // Read from card 2, port 1 (next 8 inputs: 8-15)
+                DigitalRead(_credenIOCard2, 1, ref readByte);
+                _sensorStatus.StatusDoorForward = (readByte & (1 << (DoorForwardLimit - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusDoorBackward = (readByte & (1 << (DoorBackwardLimit - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusMappingForward = (readByte & (1 << (MappingForwardLimit - 8))) != 0 ? 1 : 0;
+                _sensorStatus.StatusMappingBackward = (readByte & (1 << (MappingBackwardLimit - 8))) != 0 ? 1 : 0;
 
-            // Position 4-5: Error Code
-            m_status[4] = sErrorCode.Length > 0 ? sErrorCode[0] : '0';
-            m_status[5] = sErrorCode.Length > 1 ? sErrorCode[1] : '0';
+                // Use the new sensor validation methods
+                CheckConflictingSensorStates(); // This will throw SensorErrorException if conflicts found
 
-            // Position 6: Container Status (based on protrusion sensor and other factors)
-            if (_sensorStatus.StatusProtrusion == 1)
-            {
-                // Check if FOUP is properly mounted (could add more logic here)
-                if (_sensorStatus.StatusDockForward == 1)
-                    m_status[6] = (char)ContainerStatus.Normal_mounting;
+                // If no conflicts, ensure status is normal (if no other errors exist)
+                if (sErrorCode == "00")
+                {
+                    m_status[0] = (char)MachineStatus.Normal;
+                }
+
+                // Position 4-5: Error Code
+                m_status[4] = sErrorCode.Length > 0 ? sErrorCode[0] : '0';
+                m_status[5] = sErrorCode.Length > 1 ? sErrorCode[1] : '0';
+
+                // Position 6: Cassette Placement Status (placement quality) - ONLY StatusPresence1And2 and StatusPresence3
+                if (_sensorStatus.StatusPresence1And2 == 1 && _sensorStatus.StatusPresence3 == 1)
+                {
+                    // Proper placement - all main presence sensors active (GREEN condition)
+                    m_status[6] = (char)CassettePlacementStatus.Properly_Placed;
+                }
                 else
-                    m_status[6] = (char)ContainerStatus.Abnormal_mounting;
-            }
-            else
-            {
-                m_status[6] = (char)ContainerStatus.None;
-            }
+                {
+                    // No cassette detected by main sensors
+                    m_status[6] = (char)CassettePlacementStatus.No_Cassette;
+                }
 
-            // Position 7: FOUP Clamp Status
-            if ((_sensorStatus.StatusClamp == 1) && (_sensorStatus.StatusUnclamp == 1))
-            {
-                m_status[7] = (char)ClampStatus.Indefinite;
-            }
-            else if (_sensorStatus.StatusClamp == 1)
-            {
-                    m_status[7] = (char)ClampStatus.Close;
-            }
-                else if (_sensorStatus.StatusUnclamp == 1)
-            {
-                    m_status[7] = (char)ClampStatus.Open;
-            }
-                else
-            {
+                // Position 7: FOUP Clamp Status
+                if ((_sensorStatus.StatusClamp == 1) && (_sensorStatus.StatusUnclamp == 1))
+                {
                     m_status[7] = (char)ClampStatus.Indefinite;
-            }
-
-            // Position 8: Door Latch Status
-            if ((_sensorStatus.StatusLatch == 1) && (_sensorStatus.StatusUnlatch == 1))
-            {
-                m_status[8] = (char)LatchStatus.Indefinite;
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                sErrorCode = ErrorCode.Error_Latch_Sensor;
-            }
-            else if (_sensorStatus.StatusLatch == 1)
-            {
-                if (_sensorStatus.StatusLatch == 1)
-                    m_status[8] = (char)LatchStatus.Close;
-            }
-                else if (_sensorStatus.StatusUnlatch == 1)
-            {
-                    m_status[8] = (char)LatchStatus.Open;
-            }
+                }
+                else if (_sensorStatus.StatusClamp == 1)
+                {
+                    m_status[7] = (char)ClampStatus.Close;
+                }
+                else if (_sensorStatus.StatusUnclamp == 1)
+                {
+                    m_status[7] = (char)ClampStatus.Open;
+                }
                 else
-            {
+                {
+                    m_status[7] = (char)ClampStatus.Indefinite;
+                }
+
+                // Position 8: Door Latch Status
+                if ((_sensorStatus.StatusLatch == 1) && (_sensorStatus.StatusUnlatch == 1))
+                {
                     m_status[8] = (char)LatchStatus.Indefinite;
+                }
+                else if (_sensorStatus.StatusLatch == 1)
+                {
+                    m_status[8] = (char)LatchStatus.Close;
+                }
+                else if (_sensorStatus.StatusUnlatch == 1)
+                {
+                    m_status[8] = (char)LatchStatus.Open;
+                }
+                else
+                {
+                    m_status[8] = (char)LatchStatus.Indefinite;
+                }
+
+                // Position 9: Vacuum Status
+                m_status[9] = _sensorStatus.StatusVacuum == 1 ? (char)VacuumStatus.On : (char)VacuumStatus.Off;
+
+                // Position 10: Door Position
+                if (_sensorStatus.StatusDoorForward == 1)
+                {
+                    m_status[10] = (char)DoorPosition.Open;
+                }
+                else if (_sensorStatus.StatusDoorBackward == 1)
+                {
+                    m_status[10] = (char)DoorPosition.Close;
+                }
+                else
+                {
+                    m_status[10] = (char)DoorPosition.Indefinite;
+                }
+
+                // Position 11: Wafer Protrusion Sensor
+                m_status[11] = _sensorStatus.StatusProtrusion == 1 ? (char)WaferProtrusionSensor.No_protrude : (char)WaferProtrusionSensor.Protrude;
+
+                // Position 12: Elevator Axis Position
+                if (_sensorStatus.StatusElevatorUp == 1)
+                {
+                    m_status[12] = (char)ZAxisPosition.Up_position;
+                }
+                else if (_sensorStatus.StatusElevatorDown == 1)
+                {
+                    m_status[12] = (char)ZAxisPosition.Down_position;
+                }
+                else
+                {
+                    m_status[12] = (char)ZAxisPosition.Indefinite;
+                }
+
+                // Position 13: Dock Position
+                if (_sensorStatus.StatusDockForward == 1)
+                {
+                    m_status[13] = (char)DockPosition.Dock;
+                }
+                else if (_sensorStatus.StatusDockBackward == 1)
+                {
+                    m_status[13] = (char)DockPosition.Undock;
+                }
+                else
+                {
+                    m_status[13] = (char)DockPosition.Indefinite;
+                }
+
+                // Position 14: Cassette Presence Status (basic presence detection)
+                if (_sensorStatus.StatusPresenceDiagonal1 == 0 || _sensorStatus.StatusPresenceDiagonal2 == 0)
+                {
+                    m_status[14] = (char)CassettePresenceStatus.Present;
+                }
+                else
+                {
+                    m_status[14] = (char)CassettePresenceStatus.None;
+                }
+
+                // Position 15: Mapping Position
+                if (_sensorStatus.StatusMappingForward == 1)
+                {
+                    m_status[15] = (char)MappingPosition.Waiting_position;
+                }
+                else if (_sensorStatus.StatusMappingBackward == 1)
+                {
+                    m_status[15] = (char)MappingPosition.Measuring_position;
+                }
+                else
+                {
+                    m_status[15] = (char)MappingPosition.Indefinite;
+                }
+
+                // Position 16: Reserve (keep existing value or set to '0')
+                m_status[16] = '0';
+
+                // Position 17: Mapping Status (managed by mapping operations - keep current value)
+                // m_status[17] is set by mapping operations
+
+                // Position 18: Type (managed by mapping operations or configuration - keep current value)
+                // m_status[18] is set by mapping type selection
+
+                // Position 19: Reserve (keep existing value or set to '0')
+                m_status[19] = '0';
             }
-
-            // Position 9: Vacuum Status
-            m_status[9] = _sensorStatus.StatusVacuum == 1 ? (char)VacuumStatus.On : (char)VacuumStatus.Off;
-
-            // Position 10: Door Position
-            if (_sensorStatus.StatusDoorForward == 1)
+            catch (Exception ex)
             {
-                m_status[10] = (char)DoorPosition.Open;
+                Debug.WriteLine($"Error reading sensor status: {ex.Message}");
+                _errorMessage = $"Failed to read sensor status: {ex.Message}";
+            }
         }
-            else if (_sensorStatus.StatusDoorBackward == 1)
-            {
-                m_status[10] = (char)DoorPosition.Close;
-            }
-            else
-            {
-                m_status[10] = (char)DoorPosition.Indefinite;
-            }
-
-            // Position 11: Wafer Protrusion Sensor
-            m_status[11] = _sensorStatus.StatusProtrusion == 1 ? (char)WaferProtrusionSensor.No_protrude : (char)WaferProtrusionSensor.Protrude;
-
-            // Position 12: Elevator Axis Position
-            if (_sensorStatus.StatusElevatorUp == 1)
-            {
-                m_status[12] = (char)ZAxisPosition.Up_position;
-            }
-            else if (_sensorStatus.StatusElevatorDown == 1)
-            {
-                m_status[12] = (char)ZAxisPosition.Down_position;
-            }
-            else
-            {
-                m_status[12] = (char)ZAxisPosition.Indefinite;
-            }
-
-            // Position 13: Dock Position
-            if (_sensorStatus.StatusDockForward == 1)
-            {
-                m_status[13] = (char)DockPosition.Dock;
-            }
-            else if (_sensorStatus.StatusDockBackward == 1)
-            {
-                m_status[13] = (char)DockPosition.Undock;
-            }
-            else
-            {
-                m_status[13] = (char)DockPosition.Indefinite;
-            }
-
-            // Position 14: Reserve (keep existing value or set to '0')
-            m_status[14] = '0';
-
-            // Position 15: Mapping Position
-            if (_sensorStatus.StatusMappingForward == 1)
-            {
-                m_status[15] = (char)MappingPosition.Waiting_position;
-            }
-            else if (_sensorStatus.StatusMappingBackward == 1)
-            {
-                m_status[15] = (char)MappingPosition.Measuring_position;
-            }
-            else
-            {
-                m_status[15] = (char)MappingPosition.Indefinite;
-            }
-
-            // Position 16: Reserve (keep existing value or set to '0')
-            m_status[16] = '0';
-
-            // Position 17: Mapping Status (managed by mapping operations - keep current value)
-            // m_status[17] is set by mapping operations
-
-            // Position 18: Type (managed by mapping operations or configuration - keep current value)
-            // m_status[18] is set by mapping type selection
-
-            // Position 19: Reserve (keep existing value or set to '0')
-            m_status[19] = '0';
-
-            // Debug output (optional - can be removed in production)
-            //Debug.WriteLine($"Status Updated - Clamp: {_sensorStatus.StatusClamp}, Unclamp: {_sensorStatus.StatusUnclamp}, Latch: {_sensorStatus.StatusLatch}, Unlatch: {_sensorStatus.StatusUnlatch}");
-        }
-
         #endregion
 
-        // Enums for sequence and operation types
-        public enum SequenceType
+        #region Sensor Error Detection and Validation
+        private void ValidateSensorStates(
+            string operationName = "General",
+            string specificSensorName = null,
+            int? expectedSensorState = null,
+            string operationErrorCode = null)
         {
-            FOUP = 0,
-            Adaptor = 1,
-            FOSB = 3,
-            N2Purge = 5
+            // 1. Update sensor status first (always get fresh data)
+            UpdateSensorStatus();
+
+            // 2. Smart operation-specific pre-condition validation (if specified)
+            if (!string.IsNullOrEmpty(specificSensorName) && expectedSensorState.HasValue)
+            {
+                try
+                {
+                    // **SMART VALIDATION: Check if system is already in desired state**
+                    bool shouldSkipValidation = ShouldSkipPreValidation(operationName, specificSensorName, expectedSensorState.Value);
+
+                    if (!shouldSkipValidation)
+                    {
+                        ValidateSpecificSensor(specificSensorName, expectedSensorState.Value, operationErrorCode ?? ErrorCode.Error_Clamp_Sensor);
+                        Debug.WriteLine($"Pre-operation validation passed for {operationName}: {specificSensorName} = {expectedSensorState.Value}");
+                    }
+                    else
+                    {
+                        Debug.WriteLine($"Pre-operation validation skipped for {operationName}: System already in desired state");
+                    }
+                }
+                catch (SensorErrorException ex)
+                {
+                    Debug.WriteLine($"Pre-operation sensor validation failed for {operationName}: {ex.Message}");
+                    throw;
+                }
+            }
+
+            // 3. Check for conflicting sensor states (both 7x)
+            CheckConflictingSensorStates();
+
+            // 4. Check for individual sensor failures
+            //CheckIndividualSensorFailures();
+
+            Debug.WriteLine($"Comprehensive sensor validation passed for operation: {operationName}");
         }
 
-        public enum OperationType
+        private bool ShouldSkipPreValidation(string operationName, string sensorName, int expectedState)
         {
-            Load,
-            Unload
+            switch (operationName.ToUpper())
+            {
+                case "UNCLAMP":
+                    // For unclamp operation, if we're already unclamped, we can proceed
+                    if (sensorName.ToUpper() == "CLAMP" && expectedState == 1)
+                    {
+                        // Check if already unclamped - if so, skip validation
+                        return _sensorStatus.StatusUnclamp == 1 && _sensorStatus.StatusClamp == 0;
+                    }
+                    break;
+
+                case "CLAMP":
+                    // For clamp operation, if we're already clamped, we can proceed
+                    if (sensorName.ToUpper() == "UNCLAMP" && expectedState == 1)
+                    {
+                        // Check if already clamped - if so, skip validation
+                        return _sensorStatus.StatusClamp == 1 && _sensorStatus.StatusUnclamp == 0;
+                    }
+                    break;
+
+                case "UNLATCH":
+                    // For unlatch operation, if we're already unlatched, we can proceed
+                    if (sensorName.ToUpper() == "LATCH" && expectedState == 1)
+                    {
+                        // Check if already unlatched - if so, skip validation
+                        return _sensorStatus.StatusUnlatch == 1 && _sensorStatus.StatusLatch == 0;
+                    }
+                    break;
+
+                case "LATCH":
+                    // For latch operation, if we're already latched, we can proceed
+                    if (sensorName.ToUpper() == "UNLATCH" && expectedState == 1)
+                    {
+                        // Check if already latched - if so, skip validation
+                        return _sensorStatus.StatusLatch == 1 && _sensorStatus.StatusUnlatch == 0;
+                    }
+                    break;
+
+                case "ELEVATORUP":
+                    // For elevator up operation, if we're already at top, we can proceed
+                    if (sensorName.ToUpper() == "ELEVATOR_UP" && expectedState == 0)
+                    {
+                        // Check if already at top - if so, skip validation
+                        return _sensorStatus.StatusElevatorUp == 1;
+                    }
+                    break;
+
+                case "ELEVATORDOWN":
+                    // For elevator down operation, if we're already at bottom, we can proceed
+                    if (sensorName.ToUpper() == "ELEVATOR_DOWN" && expectedState == 0)
+                    {
+                        // Check if already at bottom - if so, skip validation
+                        return _sensorStatus.StatusElevatorDown == 1;
+                    }
+                    break;
+
+                case "DOCKFORWARD":
+                    // For dock forward operation, if we're already extended, we can proceed
+                    if (sensorName.ToUpper() == "DOCK_BACKWARD" && expectedState == 1)
+                    {
+                        // Check if already extended - if so, skip validation
+                        return _sensorStatus.StatusDockForward == 1 && _sensorStatus.StatusDockBackward == 0;
+                    }
+                    break;
+
+                case "DOCKBACKWARD":
+                    // For dock backward operation, if we're already retracted, we can proceed
+                    if (sensorName.ToUpper() == "DOCK_FORWARD" && expectedState == 1)
+                    {
+                        // Check if already retracted - if so, skip validation
+                        return _sensorStatus.StatusDockBackward == 1 && _sensorStatus.StatusDockForward == 0;
+                    }
+                    break;
+
+                case "DOORFORWARD":
+                    // For door forward operation, if we're already open, we can proceed
+                    if (sensorName.ToUpper() == "DOOR_BACKWARD" && expectedState == 1)
+                    {
+                        // Check if already open - if so, skip validation
+                        return _sensorStatus.StatusDoorForward == 1 && _sensorStatus.StatusDoorBackward == 0;
+                    }
+                    break;
+
+                case "DOORBACKWARD":
+                    // For door backward operation, if we're already closed, we can proceed
+                    if (sensorName.ToUpper() == "DOOR_FORWARD" && expectedState == 1)
+                    {
+                        // Check if already closed - if so, skip validation
+                        return _sensorStatus.StatusDoorBackward == 1 && _sensorStatus.StatusDoorForward == 0;
+                    }
+                    break;
+
+                case "MAPPINGFORWARD":
+                    // For mapping forward operation, if we're already retracted, we can proceed
+                    if (sensorName.ToUpper() == "MAPPING_BACKWARD" && expectedState == 1)
+                    {
+                        // Check if already retracted - if so, skip validation
+                        return _sensorStatus.StatusMappingForward == 1 && _sensorStatus.StatusMappingBackward == 0;
+                    }
+                    break;
+
+                case "MAPPINGBACKWARD":
+                    // For mapping backward operation, if we're already extended, we can proceed
+                    if (sensorName.ToUpper() == "MAPPING_FORWARD" && expectedState == 1)
+                    {
+                        // Check if already extended - if so, skip validation
+                        return _sensorStatus.StatusMappingBackward == 1 && _sensorStatus.StatusMappingForward == 0;
+                    }
+                    break;
+
+                // **SPECIAL CASE FOR ORIGIN/INITIALIZE OPERATIONS**
+                case "ORIGIN":
+                case "INITIALIZE":
+                case "RESET ERROR":
+                    // For origin/initialize operations, we should be more lenient
+                    // Allow operations to proceed if system is in a reasonable state
+                    Debug.WriteLine($"Origin/Initialize operation detected - applying lenient validation for {sensorName}");
+
+                    // Skip validation for most sensors during origin, except for conflicting states
+                    switch (sensorName.ToUpper())
+                    {
+                        case "CLAMP":
+                        case "UNCLAMP":
+                            // Allow origin to proceed regardless of clamp state
+                            return true;
+                        case "LATCH":
+                        case "UNLATCH":
+                            // Allow origin to proceed regardless of latch state
+                            return true;
+                        case "ELEVATOR_UP":
+                        case "ELEVATOR_DOWN":
+                            // Allow origin to proceed regardless of elevator position
+                            return true;
+                        case "DOCK_FORWARD":
+                        case "DOCK_BACKWARD":
+                            // Allow origin to proceed regardless of dock position
+                            return true;
+                        case "DOOR_FORWARD":
+                        case "DOOR_BACKWARD":
+                            // Allow origin to proceed regardless of door position
+                            return true;
+                        case "MAPPING_FORWARD":
+                        case "MAPPING_BACKWARD":
+                            // Allow origin to proceed regardless of mapping position
+                            return true;
+                    }
+                    break;
+            }
+
+            return false; // Don't skip validation by default
+        }
+        private void CheckConflictingSensorStates(string operationName = null)
+        {
+            // If operation name is provided, only check relevant conflicts for that operation
+            if (!string.IsNullOrEmpty(operationName))
+            {
+                switch (operationName.ToLower())
+                {
+                    case "clamp":
+                    case "unclamp":
+                        CheckClampConflicts();
+                        break;
+                    case "dockforward":
+                    case "dockbackward":
+                        CheckDockConflicts();
+                        break;
+                    case "latch":
+                    case "unlatch":
+                        CheckLatchConflicts();
+                        break;
+                    case "doorforward":
+                    case "doorbackward":
+                        CheckDoorConflicts();
+                        break;
+                    case "elevatorup":
+                    case "elevatordown":
+                    case "elevatormappingstartposition":
+                    case "elevatormappingendposition":
+                        CheckElevatorConflicts();
+                        break;
+                    case "mappingforward":
+                    case "mappingbackward":
+                        CheckMappingConflicts();
+                        break;
+                    default:
+                        // For unknown operations or general checks, check all conflicts
+                        CheckAllConflicts();
+                        break;
+                }
+            }
+            else
+            {
+                // No operation specified - check all conflicts (for UpdateSensorStatus)
+                CheckAllConflicts();
+            }
+        }
+        // Helper method for specific conflict checks
+        private void CheckClampConflicts()
+        {
+            if (_sensorStatus.StatusClamp == 1 && _sensorStatus.StatusUnclamp == 1)
+            {
+                sErrorCode = ErrorCode.Error_Clamp_Sensor;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    ErrorCode.Error_Clamp_Sensor,
+                    "Clamp Sensors",
+                    "Both clamp and unclamp sensors are detected simultaneously"
+                );
+            }
         }
 
-        // Sequence step definition
-        public class SequenceStep
+        private void CheckDockConflicts()
         {
-            public string Name { get; set; }
-            public Func<CancellationToken, bool> Operation { get; set; }
-            public bool IsRequired { get; set; } = true;
+            if (_sensorStatus.StatusDockForward == 1 && _sensorStatus.StatusDockBackward == 1)
+            {
+                sErrorCode = ErrorCode.Error_Dock_Sensor;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    ErrorCode.Error_Dock_Sensor,
+                    "Dock Sensors",
+                    "Both dock forward and backward sensors are detected simultaneously"
+                );
+            }
         }
 
-        #region Control Operations
+        private void CheckLatchConflicts()
+        {
+            if (_sensorStatus.StatusLatch == 1 && _sensorStatus.StatusUnlatch == 1)
+            {
+                sErrorCode = ErrorCode.Error_Latch_Sensor;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    ErrorCode.Error_Latch_Sensor,
+                    "Latch Sensors",
+                    "Both latch and unlatch sensors are detected simultaneously"
+                );
+            }
+        }
+
+        private void CheckDoorConflicts()
+        {
+            if (_sensorStatus.StatusDoorForward == 1 && _sensorStatus.StatusDoorBackward == 1)
+            {
+                sErrorCode = ErrorCode.Error_Door_Sensor;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    ErrorCode.Error_Door_Sensor,
+                    "Door Sensors",
+                    "Both door open and close sensors are detected simultaneously"
+                );
+            }
+        }
+
+        private void CheckMappingConflicts()
+        {
+            if (_sensorStatus.StatusMappingForward == 1 && _sensorStatus.StatusMappingBackward == 1)
+            {
+                sErrorCode = ErrorCode.Error_Mapping_Sensor;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    ErrorCode.Error_Mapping_Sensor,
+                    "Mapping Sensors",
+                    "Both mapping in and out sensors are detected simultaneously"
+                );
+            }
+        }
+
+        private void CheckElevatorConflicts()
+        {
+            if (_sensorStatus.StatusElevatorUp == 1 && _sensorStatus.StatusElevatorDown == 1)
+            {
+                sErrorCode = ErrorCode.Error_ElevatorAxis_Sensor;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    ErrorCode.Error_ElevatorAxis_Sensor,
+                    "Elevator Axis Sensors",
+                    "Both elevator up and down limit sensors are detected simultaneously"
+                );
+            }
+        }
+
+        // Helper method to check all conflicts (for general validation)
+        private void CheckAllConflicts()
+        {
+            CheckClampConflicts();
+            CheckDockConflicts();
+            CheckLatchConflicts();
+            CheckDoorConflicts();
+            CheckMappingConflicts();
+            CheckElevatorConflicts();
+        }
+        private bool IsAdapterType()
+        {
+            // Check if current FOUP type is Adapter based on status or settings
+
+            // Option 1: Check based on m_status[18] (PodType)
+            char currentPodType = m_status[18];
+
+            // Option 2: Check based on current active mapping type or sequence type
+            try
+            {
+                // Try to get the current sequence type from settings if available
+                var settings = FOUPCtrl.Models.Settings.Instance;
+                if (settings?.CurrentProfile?.Name?.ToUpper().Contains("ADAPTOR") == true ||
+                    settings?.CurrentProfile?.Name?.ToUpper().Contains("ADAPTER") == true)
+                {
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking adapter type from settings: {ex.Message}");
+            }
+
+            // Option 3: Check based on PodType enum values
+            // Assuming Adapter corresponds to a specific PodType value
+            // You may need to adjust this based on your actual PodType enum values
+            if (currentPodType == (char)((int)PodType.Type1 + 1)) // Assuming Adapter is Type2
+            {
+                return true;
+            }
+
+            return false;
+        }
+        private void ValidateSpecificSensor(string sensorName, int expectedState, string errorCode)
+        {
+            UpdateSensorStatus();
+
+            int actualState = -1;
+            switch (sensorName.ToUpper())
+            {
+                case "CLAMP":
+                    actualState = _sensorStatus.StatusClamp;
+                    break;
+                case "UNCLAMP":
+                    actualState = _sensorStatus.StatusUnclamp;
+                    break;
+                case "LATCH":
+                    actualState = _sensorStatus.StatusLatch;
+                    break;
+                case "UNLATCH":
+                    actualState = _sensorStatus.StatusUnlatch;
+                    break;
+                case "ELEVATOR_UP":
+                    actualState = _sensorStatus.StatusElevatorUp;
+                    break;
+                case "ELEVATOR_DOWN":
+                    actualState = _sensorStatus.StatusElevatorDown;
+                    break;
+                case "DOOR_FORWARD":
+                    actualState = _sensorStatus.StatusDoorForward;
+                    break;
+                case "DOOR_BACKWARD":
+                    actualState = _sensorStatus.StatusDoorBackward;
+                    break;
+                case "DOCK_FORWARD":
+                    actualState = _sensorStatus.StatusDockForward;
+                    break;
+                case "DOCK_BACKWARD":
+                    actualState = _sensorStatus.StatusDockBackward;
+                    break;
+                case "MAPPING_FORWARD":
+                    actualState = _sensorStatus.StatusMappingForward;
+                    break;
+                case "MAPPING_BACKWARD":
+                    actualState = _sensorStatus.StatusMappingBackward;
+                    break;
+                case "VACUUM":
+                    actualState = _sensorStatus.StatusVacuum;
+                    break;
+                case "PROTRUSION":
+                    actualState = _sensorStatus.StatusProtrusion;
+                    break;
+                default:
+                    throw new ArgumentException($"Unknown sensor name: {sensorName}");
+            }
+
+            if (actualState != expectedState)
+            {
+                sErrorCode = errorCode;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                throw new SensorErrorException(
+                    errorCode,
+                    sensorName,
+                    $"Sensor state mismatch - Expected: {expectedState}, Actual: {actualState}"
+                );
+            }
+        }
+        #endregion
+
+        #region Continuous Monitoring
+        private void CheckDockHandPinchErrorContinuous()
+        {
+            try
+            {
+                // Read the dock head pinch sensor (bit 4 on card 1)
+                int pinchSensorStatus = ReadBit(_credenIOCard1, DockHandPinchSensor);
+
+                // Check if hand pinch is detected
+                if (pinchSensorStatus == 1)
+                {
+                    sErrorCode = ErrorCode.Error_DockHandPinch;
+                    m_status[0] = (char)MachineStatus.RecoverableError;
+                    _errorMessage = "Dock hand pinch detected - Check for foreign matter or interfering object";
+
+                    throw new SensorErrorException(
+                        ErrorCode.Error_DockHandPinch,
+                        "Dock Head Pinch Sensor",
+                        "Hand pinch detected during dock operation - foreign matter or interfering object detected"
+                    );
+                }
+            }
+            catch (SensorErrorException)
+            {
+                throw; // Re-throw sensor exceptions
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in continuous dock hand pinch monitoring: {ex.Message}");
+            }
+        }
+        private void CheckDoorRetentionErrorContinuous()
+        {
+            try
+            {
+                // **SIMPLIFIED: Only check if vacuum is lost - no other conditions**
+                bool vacuumIsLost = _sensorStatus.StatusVacuum == 0;
+                bool doorIsUnlatched = _sensorStatus.StatusUnlatch == 1;
+
+                if (vacuumIsLost && doorIsUnlatched)
+                {
+                    string detailedMessage = $"A0 Vacuum Lost Error Detected - " +
+                                            $"Vacuum: Lost, " +
+                                            //$"Door: {(_sensorStatus.StatusDoorForward == 1 ? "Open" : "Closed")}, " +
+                                            $"Latch: {(_sensorStatus.StatusUnlatch == 1 ? "Unlatched" : "Latched")}";
+
+                    Debug.WriteLine($"CONTINUOUS MONITORING: {detailedMessage}");
+
+                    sErrorCode = ErrorCode.Error_WaferDrop;
+                    m_status[0] = (char)MachineStatus.RecoverableError;
+                    _errorMessage = "Vacuum lost during operation - Check vacuum system immediately";
+
+                    throw new SensorErrorException(
+                        ErrorCode.Error_WaferDrop,
+                        "Vacuum Monitor (Continuous)",
+                        detailedMessage
+                    );
+                }
+            }
+            catch (SensorErrorException)
+            {
+                throw; // Re-throw sensor exceptions
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in continuous vacuum monitoring: {ex.Message}");
+            }
+        }
+        private void CheckWaferProtrusionErrorContinuous()
+        {
+            try
+            {
+                if (_sensorStatus.StatusProtrusion == 0)
+                {
+                    sErrorCode = ErrorCode.Error_WaferProtruded;
+                    m_status[0] = (char)MachineStatus.RecoverableError;
+                    _errorMessage = "Wafer protrusion detected - Check wafer placement";
+
+                    throw new SensorErrorException(
+                        ErrorCode.Error_WaferProtruded,
+                        "Wafer Protrusion (A1)",
+                        "Wafer protrusion sensor indicates improper wafer placement. Check wafer positioning in cassette."
+                    );
+                }
+            }
+            catch (SensorErrorException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in continuous wafer protrusion monitoring: {ex.Message}");
+            }
+        }
+        private void CheckFOUPMountSensorErrorContinuous()
+        {
+            try
+            {
+                bool presence1And2Active = _sensorStatus.StatusPresence1And2 == 1;
+                bool presence3Active = _sensorStatus.StatusPresence3 == 1;
+
+                // Check if main presence sensors are not detecting properly
+                if (!presence1And2Active || !presence3Active)
+                {
+                    sErrorCode = ErrorCode.Error_FOUPMount_Sensor;
+                    m_status[0] = (char)MachineStatus.RecoverableError;
+                    _errorMessage = "FOUP mount sensor error - Main presence sensors not detecting";
+
+                    throw new SensorErrorException(
+                        ErrorCode.Error_FOUPMount_Sensor,
+                        "FOUP Mount Sensors (A2)",
+                        "Main presence sensor error detected during continuous monitoring."
+                    );
+                }
+            }
+            catch (SensorErrorException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in continuous FOUP mount sensor monitoring (A2): {ex.Message}");
+            }
+        }
+        private void CheckFOUPMountLoadErrorContinuous()
+        {
+            try
+            {
+                // Only check diagonal sensors for Adapter type
+                if (IsAdapterType())
+                {
+                    bool presenceDiag1Active = _sensorStatus.StatusPresenceDiagonal1 == 0;
+                    bool presenceDiag2Active = _sensorStatus.StatusPresenceDiagonal2 == 0;
+
+                    if (!presenceDiag1Active || !presenceDiag2Active)
+                    {
+                        sErrorCode = ErrorCode.Error_FOUPMount_Load;
+                        m_status[0] = (char)MachineStatus.RecoverableError;
+                        _errorMessage = "FOUP mount load error - Diagonal presence sensors not detecting";
+
+                        throw new SensorErrorException(
+                            ErrorCode.Error_FOUPMount_Load,
+                            "FOUP Mount Load (A3)",
+                            "FOUP mount load error detected during continuous monitoring for Adapter type."
+                        );
+                    }
+                }
+            }
+            catch (SensorErrorException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in continuous FOUP mount load monitoring (A3): {ex.Message}");
+            }
+        }
+        private void CheckAirPressureErrorContinuous()
+        {
+            try
+            {
+                int pressureSensorStatus = ReadBit(_credenIOCard2, 3);
+
+                if (pressureSensorStatus == 0)
+                {
+                    sErrorCode = ErrorCode.Error_AirPressure;
+                    m_status[0] = (char)MachineStatus.RecoverableError;
+                    _errorMessage = "Air pressure sensor error - Insufficient air pressure";
+
+                    throw new SensorErrorException(
+                        ErrorCode.Error_AirPressure,
+                        "Air Pressure (A5)",
+                        "Air pressure sensor indicates insufficient pressure. Check air supply and pressure sensor."
+                    );
+                }
+            }
+            catch (SensorErrorException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error in continuous air pressure monitoring: {ex.Message}");
+            }
+        }
+        private bool StartContinuousDoorRetentionMonitoring(CancellationToken token)
+        {
+            return StartContinuousSensorMonitoring(token, "doorretention");
+        }
+        private bool StartContinuousWaferProtrusionMonitoring(CancellationToken token)
+        {
+            return StartContinuousSensorMonitoring(token, "waferprotrusion");
+        }
+        private bool StartContinuousFOUPMountSensorMonitoring(CancellationToken token)
+        {
+            return StartContinuousSensorMonitoring(token, "foupmountsensor");
+        }
+        private bool StartContinuousFOUPMountLoadMonitoring(CancellationToken token)
+        {
+            return StartContinuousSensorMonitoring(token, "foupmountload");
+        }
+        private bool StartContinuousAirPressureMonitoring(CancellationToken token)
+        {
+            return StartContinuousSensorMonitoring(token, "airpressure");
+        }
+        private bool StartContinuousDockHandPinchMonitoring(CancellationToken token)
+        {
+            return StartContinuousSensorMonitoring(token, "dockhandpinch");
+        }
+        private bool StartContinuousSensorMonitoring(CancellationToken token, string sensorType)
+        {
+            try
+            {
+                Debug.WriteLine($"Starting continuous sensor monitoring for: {sensorType}");
+
+                // Get or create the appropriate cancellation token source for this sensor type
+                CancellationTokenSource monitoringCts = GetMonitoringCts(sensorType);
+
+                // Cancel existing monitoring for this specific sensor type only
+                if (monitoringCts != null && !monitoringCts.Token.IsCancellationRequested)
+                {
+                    Debug.WriteLine($"Stopping existing {sensorType} monitoring");
+                    monitoringCts.Cancel();
+                    monitoringCts.Dispose();
+                }
+
+                // Create new cancellation token source for this sensor type
+                monitoringCts = new CancellationTokenSource();
+                SetMonitoringCts(sensorType, monitoringCts);
+
+                // Start monitoring task for this specific sensor type
+                Task.Run(async () => await ContinuousSensorMonitoringTask(monitoringCts.Token, sensorType),
+                            monitoringCts.Token);
+
+                // **CRITICAL FIX: Add a delay to allow sensor monitoring to detect errors before continuing**
+                System.Threading.Thread.Sleep(200); // 200ms delay to allow monitoring to check sensors
+
+                // **CRITICAL FIX: Check if sensor monitoring already detected an error**
+                if (_sequenceCancellationTokenSource != null && _sequenceCancellationTokenSource.Token.IsCancellationRequested)
+                {
+                    Debug.WriteLine("Sensor monitoring detected error during startup - cancelling sequence");
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to start sensor monitoring: {ex.Message}");
+                _errorMessage = $"Failed to start sensor monitoring: {ex.Message}";
+                return false;
+            }
+        }
+        private CancellationTokenSource GetMonitoringCts(string sensorType)
+        {
+            switch (sensorType.ToLower())
+            {
+                case "doorretention":
+                case "vacuum":
+                case "a0":
+                    return _doorRetentionMonitoringCts;
+                case "airpressure":
+                case "pressure":
+                case "a5":
+                    return _airPressureMonitoringCts;
+                case "foupmountsensor":
+                case "a2":
+                    return _foupMountSensorMonitoringCts;
+                case "waferprotrusion":
+                case "protrusion":
+                case "a1":
+                    return _waferProtrusionMonitoringCts;
+                case "foupmountload":
+                case "a3":
+                    return _foupMountLoadMonitoringCts;
+                case "dockhandpinch":
+                case "handpinch":
+                case "fe":
+                    return _dockHandPinchMonitoringCts;
+                default:
+                    return _doorRetentionMonitoringCts; // fallback
+            }
+        }
+        private void SetMonitoringCts(string sensorType, CancellationTokenSource cts)
+        {
+            switch (sensorType.ToLower())
+            {
+                case "doorretention":
+                case "vacuum":
+                case "a0":
+                    _doorRetentionMonitoringCts = cts;
+                    break;
+                case "airpressure":
+                case "pressure":
+                case "a5":
+                    _airPressureMonitoringCts = cts;
+                    break;
+                case "foupmountsensor":
+                case "a2":
+                    _foupMountSensorMonitoringCts = cts;
+                    break;
+                case "waferprotrusion":
+                case "protrusion":
+                case "a1":
+                    _waferProtrusionMonitoringCts = cts;
+                    break;
+                case "fourmountload":
+                case "a3":
+                    _foupMountLoadMonitoringCts = cts;
+                    break;
+                case "dockhandpinch":
+                case "handpinch":
+                case "fe":
+                    _dockHandPinchMonitoringCts = cts;
+                    break;
+            }
+        }
+        private async Task ContinuousSensorMonitoringTask(CancellationToken monitoringToken, string sensorType)
+        {
+            Debug.WriteLine($"Sensor monitoring task started for: {sensorType}");
+
+            try
+            {
+                // **CRITICAL FIX: Do an immediate sensor check before starting continuous monitoring**
+                try
+                {
+                    UpdateSensorStatus();
+                    CheckSensorErrorContinuous(sensorType);
+                    Debug.WriteLine($"Initial sensor check passed for: {sensorType}");
+                }
+                catch (SensorErrorException ex)
+                {
+                    Debug.WriteLine($"IMMEDIATE sensor error detected: {ex.ErrorCode} - {ex.Message}");
+                    _errorMessage = ex.Message;
+                    sErrorCode = ex.ErrorCode;
+                    m_status[0] = (char)MachineStatus.RecoverableError;
+
+                    // **CRITICAL FIX: Cancel the ongoing sequence immediately**
+                    if (_sequenceCancellationTokenSource != null && !_sequenceCancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        Debug.WriteLine("EMERGENCY STOP: Cancelling ongoing sequence due to immediate sensor error");
+                        _sequenceCancellationTokenSource.Cancel();
+                    }
+
+                    // **CRITICAL FIX: Stop all motor operations immediately**
+                    await SafelyDisableAllOutputs();
+
+                    // Show error dialog
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        string title = $"Sensor Error ({ex.ErrorCode})";
+                        string message = $"Error {ex.ErrorCode} Detected!\n\n{ex.Message}\n\nSequence has been stopped for safety.\n\nRecommended Actions:\n1. Check the affected sensor/system\n2. Reset error after fixing the issue";
+                        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+                    });
+
+                    return; // Stop monitoring after immediate error
+                }
+
+                // Continue with continuous monitoring if initial check passed
+                while (!monitoringToken.IsCancellationRequested)
+                {
+                    try
+                    {
+                        UpdateSensorStatus();
+                        CheckSensorErrorContinuous(sensorType);
+                        await Task.Delay(100, monitoringToken);
+                    }
+                    catch (SensorErrorException ex)
+                    {
+                        Debug.WriteLine($"Sensor monitoring detected error: {ex.ErrorCode} - {ex.Message}");
+                        _errorMessage = ex.Message;
+                        sErrorCode = ex.ErrorCode;
+                        m_status[0] = (char)MachineStatus.RecoverableError;
+
+                        // **CRITICAL FIX: Cancel the ongoing sequence immediately**
+                        if (_sequenceCancellationTokenSource != null && !_sequenceCancellationTokenSource.Token.IsCancellationRequested)
+                        {
+                            Debug.WriteLine("EMERGENCY STOP: Cancelling ongoing sequence due to sensor error");
+                            _sequenceCancellationTokenSource.Cancel();
+                        }
+
+                        // **CRITICAL FIX: Stop all motor operations immediately**
+                        await SafelyDisableAllOutputs();
+
+                        // Show error dialog
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            string title = $"Sensor Error ({ex.ErrorCode})";
+                            string message = $"Error {ex.ErrorCode} Detected!\n\n{ex.Message}\n\nSequence has been stopped for safety.\n\nRecommended Actions:\n1. Check the affected sensor/system\n2. Reset error after fixing the issue";
+                            MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+                        });
+
+                        return; // Stop monitoring after error
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        // **FIXED: Don't log TaskCanceledException as an error**
+                        Debug.WriteLine($"Sensor monitoring task for {sensorType} was cancelled (normal operation)");
+                        return;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // **FIXED: Don't log OperationCanceledException as an error**
+                        Debug.WriteLine($"Sensor monitoring task for {sensorType} was cancelled (normal operation)");
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Sensor monitoring task error for {sensorType}: {ex.Message}");
+                        await Task.Delay(1000, monitoringToken);
+                    }
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                Debug.WriteLine($"Sensor monitoring task for {sensorType} was cancelled during startup");
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine($"Sensor monitoring task for {sensorType} was cancelled");
+            }
+        }
+        private void CheckSensorErrorContinuous(string sensorType)
+        {
+            switch (sensorType.ToLower())
+            {
+                case "doorretention":
+                case "vacuum":
+                case "a0":
+                    CheckDoorRetentionErrorContinuous();
+                    break;
+                case "waferprotrusion":
+                case "protrusion":
+                case "a1":
+                    CheckWaferProtrusionErrorContinuous();
+                    break;
+                case "foupmountsensor":
+                case "a2":
+                    CheckFOUPMountSensorErrorContinuous();
+                    break;
+                case "foupmountload":
+                case "a3":
+                    CheckFOUPMountLoadErrorContinuous();
+                    break;
+                case "airpressure":
+                case "pressure":
+                case "a5":
+                    CheckAirPressureErrorContinuous();
+                    break;
+                case "dockhandpinch":
+                case "handpinch":
+                case "fe":
+                    CheckDockHandPinchErrorContinuous();
+                    break;
+                default:
+                    Debug.WriteLine($"Unknown sensor type for continuous monitoring: {sensorType}");
+                    break;
+            }
+        }
+        public void StopContinuousDoorRetentionMonitoring()
+        {
+            try
+            {
+                Debug.WriteLine("Stopping all continuous sensor monitoring tasks");
+
+                var monitoringTasks = new[]
+                {
+                    (_doorRetentionMonitoringCts, "Door Retention"),
+                    (_airPressureMonitoringCts, "Air Pressure"),
+                    (_foupMountSensorMonitoringCts, "FOUP Mount Sensor"),
+                    (_waferProtrusionMonitoringCts, "Wafer Protrusion"),
+                    (_foupMountLoadMonitoringCts, "FOUP Mount Load"),
+                    (_dockHandPinchMonitoringCts, "Dock Hand Pinch")
+                };
+
+                foreach (var (cts, name) in monitoringTasks)
+                {
+                    if (cts != null && !cts.Token.IsCancellationRequested)
+                    {
+                        Debug.WriteLine($"Stopping {name} monitoring");
+                        cts.Cancel();
+                        cts.Dispose();
+                    }
+                }
+
+                // Clear all references
+                _doorRetentionMonitoringCts = null;
+                _airPressureMonitoringCts = null;
+                _foupMountSensorMonitoringCts = null;
+                _waferProtrusionMonitoringCts = null;
+                _foupMountLoadMonitoringCts = null;
+                _dockHandPinchMonitoringCts = null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error stopping monitoring tasks: {ex.Message}");
+            }
+        }
+        private bool StopVacuumMonitoringForOrigin(CancellationToken token)
+        {
+            try
+            {
+                Debug.WriteLine("Stopping vacuum monitoring before vacuum off operation");
+
+                if (_doorRetentionMonitoringCts != null && !_doorRetentionMonitoringCts.Token.IsCancellationRequested)
+                {
+                    Debug.WriteLine("Cancelling door retention monitoring for origin sequence");
+                    _doorRetentionMonitoringCts.Cancel();
+                    _doorRetentionMonitoringCts.Dispose();
+                    _doorRetentionMonitoringCts = null;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error stopping vacuum monitoring: {ex.Message}");
+                return false;
+            }
+        }
+        #endregion
+
+        #region Basic Control Operations
         public bool Clamp(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("Clamp"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
-
             if (_sensorStatus.StatusClamp == 0)
                 writeByte = SetBit(writeByte, _outputList.Clamp);
             else
                 writeByte = ClearBit(writeByte, _outputList.Clamp);
 
+            int portId = _outputList.Clamp < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.Clamp < 8 ? 2 : 3;
-
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -776,6 +1739,7 @@ namespace FoupControl
                     }
 
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("clamp"); // ✅ Only check clamp-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
@@ -783,14 +1747,27 @@ namespace FoupControl
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Clamp_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during clamp operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Clamp operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                throw;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                Debug.WriteLine($"Unexpected error during clamp operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
@@ -798,25 +1775,24 @@ namespace FoupControl
 
         public bool Unclamp(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("Unclamp"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
-
             if (_sensorStatus.StatusUnclamp == 0)
                 writeByte = SetBit(writeByte, _outputList.Unclamp);
             else
                 writeByte = ClearBit(writeByte, _outputList.Unclamp);
 
+            int portId = _outputList.Unclamp < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.Unclamp < 8 ? 2 : 3;
-
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -830,6 +1806,7 @@ namespace FoupControl
                     }
 
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("unclamp"); // ✅ Only check unclamp-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
@@ -837,14 +1814,27 @@ namespace FoupControl
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Unclamp_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during unclamp operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Unclamp operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                Debug.WriteLine($"Unexpected error during unclamp operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
@@ -852,26 +1842,24 @@ namespace FoupControl
 
         public bool Latch(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("Latch"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
-
-            // Follow the same conditional logic pattern as Clamp
             if (_sensorStatus.StatusLatch == 0)
                 writeByte = SetBit(writeByte, _outputList.Latch);
             else
                 writeByte = ClearBit(writeByte, _outputList.Latch);
 
+            int portId = _outputList.Latch < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.Latch < 8 ? 2 : 3;
-
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -885,21 +1873,35 @@ namespace FoupControl
                     }
 
                     UpdateSensorStatus();
-                    }
+                    CheckConflictingSensorStates("latch"); // ✅ Only check latch-related conflicts
+                }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
                 return true;
-                }
+            }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, _outputList.Latch < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Latch_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during latch operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Latch operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, _outputList.Latch < 8 ? 2 : 3, (byte)0);
+                Debug.WriteLine($"Unexpected error during latch operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
@@ -907,26 +1909,24 @@ namespace FoupControl
 
         public bool Unlatch(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("Unlatch"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
-
-            // Follow the same conditional logic pattern as Clamp and Latch
             if (_sensorStatus.StatusUnlatch == 0)
                 writeByte = SetBit(writeByte, _outputList.Unlatch);
             else
                 writeByte = ClearBit(writeByte, _outputList.Unlatch);
 
+            int portId = _outputList.Unlatch < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.Unlatch < 8 ? 2 : 3;
-
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -940,48 +1940,59 @@ namespace FoupControl
                     }
 
                     UpdateSensorStatus();
-                    }
+                    CheckConflictingSensorStates("unlatch"); // ✅ Only check unlatch-related conflicts
+                }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
                 return true;
-                }
+            }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, _outputList.Unlatch < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Unlatch_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during unlatch operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Unlatch operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, _outputList.Unlatch < 8 ? 2 : 3, (byte)0);
+                Debug.WriteLine($"Unexpected error during unlatch operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
         }
 
-
-
         // Elevator Up operation
         public bool ElevatorUp(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("ElevatorUp"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
-
-            // Set the elevator up output bits using the helper method.
             writeByte = SetBit(writeByte, _outputList.ElevatorUp1);
             writeByte = SetBit(writeByte, _outputList.ElevatorUp2);
 
+            int portId = _outputList.ElevatorUp1 < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit (assumed both outputs are on the same port)
-                int portId = _outputList.ElevatorUp1 < 8 ? 2 : 3;
                 Debug.WriteLine($"Writing to port {portId} on card 1, setting Elevator Up bits to {writeByte}");
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
@@ -990,12 +2001,12 @@ namespace FoupControl
                 {
                     token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 10000)
+                    if (elapsedMS > elevatorTimeOver)
                     {
                         throw new TimeoutException("Elevator Up Timeover");
                     }
                     UpdateSensorStatus();
-                    //Debug.WriteLine($"ElevatorUp sensor status: {_sensorStatus.StatusElevatorUp}");
+                    CheckConflictingSensorStates("elevatorup"); // ✅ Only check elevator-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
@@ -1003,46 +2014,51 @@ namespace FoupControl
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, _outputList.ElevatorUp1 < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Elevator_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during elevator up operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Elevator up operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, _outputList.ElevatorUp1 < 8 ? 2 : 3, (byte)0);
+                Debug.WriteLine($"Unexpected error during elevator up operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
         }
 
-
         // Elevator Down operation
         public bool ElevatorDown(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("ElevatorDown"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
-            // Ensure mapping arm is in forward position
-            UpdateSensorStatus();
-            //if (_sensorStatus.StatusMappingForward != 1)
-            //{
-            //    _errorMessage = "Mapping arm not in forward position.";
-            //    return false;
-            //}
-
             byte writeByte = 0;
-            // Set elevator down output bits using the helper method
             writeByte = SetBit(writeByte, _outputList.ElevatorDown1);
             writeByte = SetBit(writeByte, _outputList.ElevatorDown2);
 
+            int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on first output bit
-                int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -1050,44 +2066,57 @@ namespace FoupControl
                 {
                     token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 6000)
+                    if (elapsedMS > elevatorTimeOver)
                     {
                         throw new TimeoutException("Elevator Down Timeover");
                     }
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("elevatordown"); // ✅ Only check elevator-related conflicts
                 }
 
-                // Turn off outputs
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
                 return true;
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, _outputList.ElevatorDown1 < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Elevator_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during elevator down operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Elevator down operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, _outputList.ElevatorDown1 < 8 ? 2 : 3, (byte)0);
+                Debug.WriteLine($"Unexpected error during elevator down operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
         }
 
-
         // Door Forward (Open) operation
         public bool DoorForward(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("DoorForward"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
             // Ensure elevator is in up position
-            UpdateSensorStatus();
             if (_sensorStatus.StatusElevatorUp != 1)
             {
                 _errorMessage = "Elevator must be in the up position.";
@@ -1095,16 +2124,15 @@ namespace FoupControl
             }
 
             byte writeByte = 0;
-            // Set door forward output bit if sensor is off
             if (_sensorStatus.StatusDoorForward == 0)
                 writeByte = SetBit(writeByte, _outputList.DoorForward);
             else
                 writeByte = ClearBit(writeByte, _outputList.DoorForward);
 
+            int portId = _outputList.DoorForward < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit value
-                int portId = _outputList.DoorForward < 8 ? 2 : 3;
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -1112,11 +2140,12 @@ namespace FoupControl
                 {
                     token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 2000)
+                    if (elapsedMS > doorTimeOver)
                     {
                         throw new TimeoutException("Door Forward Timeover");
                     }
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("doorforward"); // ✅ Only check door-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
@@ -1124,31 +2153,44 @@ namespace FoupControl
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, _outputList.DoorForward < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Door_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during door forward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Door forward operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, _outputList.DoorForward < 8 ? 2 : 3, (byte)0);
+                Debug.WriteLine($"Unexpected error during door forward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
         }
 
-
         // Door Backward (Close) operation
         public bool DoorBackward(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("DoorBackward"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1 || !ConnectionIOCard2)
                 return false;
 
             // Ensure elevator is in up position
-            UpdateSensorStatus();
             if (_sensorStatus.StatusElevatorUp != 1)
             {
                 _errorMessage = "Elevator must be in the up position.";
@@ -1162,10 +2204,10 @@ namespace FoupControl
             else
                 writeByte = ClearBit(writeByte, _outputList.DoorBackward);
 
+            int portId = _outputList.DoorBackward < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.DoorBackward < 8 ? 2 : 3;
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -1173,11 +2215,12 @@ namespace FoupControl
                 {
                     token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 2000)
+                    if (elapsedMS > doorTimeOver)
                     {
                         throw new TimeoutException("Door Backward Timeover");
                     }
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("doorbackward"); // ✅ Only check door-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
@@ -1185,14 +2228,27 @@ namespace FoupControl
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, _outputList.DoorBackward < 8 ? 2 : 3, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Door_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during door backward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Door backward operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, _outputList.DoorBackward < 8 ? 2 : 3, (byte)0);
+                Debug.WriteLine($"Unexpected error during door backward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
@@ -1200,53 +2256,69 @@ namespace FoupControl
 
         public bool DockForward(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("DockForward"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
 
             if (_sensorStatus.StatusDockForward == 0)
                 writeByte = SetBit(writeByte, _outputList.DockForward);
             else
                 writeByte = ClearBit(writeByte, _outputList.DockForward);
 
+            int portId = _outputList.DockForward < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.DockForward < 8 ? 2 : 3;
-
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
                 while (_sensorStatus.StatusDockForward == 0)
                 {
+                    // **CRITICAL: Check for cancellation frequently during operation**
                     token.ThrowIfCancellationRequested();
+
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 2000)
+                    if (elapsedMS > dockTimeOver)
                     {
                         throw new TimeoutException("Dock Forward Timeover");
                     }
 
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("dockforward"); // ✅ Only check dock-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
                 return true;
             }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("DockForward operation was cancelled - stopping motor immediately");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                throw; // Re-throw to propagate cancellation
+            }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Dock_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during dock forward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                Debug.WriteLine($"Unexpected error during dock forward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
@@ -1255,25 +2327,25 @@ namespace FoupControl
         // Dock Backward (Retract) operation
         public bool DockBackward(CancellationToken token)
         {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
+            if (!CanExecuteOperation("DockBackward"))
+            {
+                return false;
+            }
 
             if (!ConnectionIOCard1)
                 return false;
 
             byte writeByte = 0;
-            UpdateSensorStatus();
 
             if (_sensorStatus.StatusDockBackward == 0)
                 writeByte = SetBit(writeByte, _outputList.DockBackward);
             else
                 writeByte = ClearBit(writeByte, _outputList.DockBackward);
 
+            int portId = _outputList.DockBackward < 8 ? 2 : 3;
+
             try
             {
-                // Determine port ID based on output bit
-                int portId = _outputList.DockBackward < 8 ? 2 : 3;
-
                 DigitalWrite(_credenIOCard1, portId, writeByte);
 
                 var stopwatch = Stopwatch.StartNew();
@@ -1281,12 +2353,13 @@ namespace FoupControl
                 {
                     token.ThrowIfCancellationRequested();
                     long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 2000)
+                    if (elapsedMS > dockTimeOver)
                     {
                         throw new TimeoutException("Dock Backward Timeover");
                     }
 
                     UpdateSensorStatus();
+                    CheckConflictingSensorStates("dockbackward"); // ✅ Only check dock-related conflicts
                 }
 
                 DigitalWrite(_credenIOCard1, portId, (byte)0);
@@ -1294,23 +2367,430 @@ namespace FoupControl
             }
             catch (TimeoutException)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 sErrorCode = ErrorCode.Error_Dock_Timeover;
                 m_status[0] = (char)MachineStatus.UnrecoverableError;
                 return false;
             }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during dock backward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Dock backward operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
             catch (Exception ex)
             {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                Debug.WriteLine($"Unexpected error during dock backward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                _errorMessage = ex.Message;
+                return false;
+            }
+        }
+        // Mapping Forward operation (actually retracts the mapping mechanism)
+        public bool MappingForward(CancellationToken token)
+        {
+            if (!CanExecuteOperation("MappingForward"))
+            {
+                return false;
+            }
+
+            if (!ConnectionIOCard1)
+                return false;
+
+            byte writeByte = 0;
+            writeByte = SetBit(writeByte, _outputList.MappingForward);
+
+            int portId = _outputList.MappingForward < 8 ? 2 : 3;
+
+            try
+            {
+                DigitalWrite(_credenIOCard1, portId, writeByte);
+
+                var stopwatch = Stopwatch.StartNew();
+                while (_sensorStatus.StatusMappingForward == 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                    long elapsedMS = stopwatch.ElapsedMilliseconds;
+                    if (elapsedMS > mappingTimeOver)
+                    {
+                        throw new TimeoutException("Mapping Forward Timeover");
+                    }
+                    UpdateSensorStatus();
+                    CheckConflictingSensorStates("mappingforward"); // ✅ Only check mapping-related conflicts
+                }
+
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return true;
+            }
+            catch (TimeoutException)
+            {
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                sErrorCode = ErrorCode.Error_Mapping_Timeover;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                return false;
+            }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during mapping forward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Mapping forward operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unexpected error during mapping forward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
                 _errorMessage = ex.Message;
                 return false;
             }
         }
 
-        /// <summary>
-        /// Ultra-high-speed mapping operation optimized for maximum data collection rate
-        /// Achieves sub-millisecond intervals by minimizing hardware calls and computations
-        /// </summary>
+        // Mapping Backward operation (actually extends the mapping mechanism)
+        public bool MappingBackward(CancellationToken token)
+        {
+            if (!CanExecuteOperation("MappingBackward"))
+            {
+                return false;
+            }
+
+            if (!ConnectionIOCard1)
+                return false;
+
+            byte writeByte = 0;
+            writeByte = SetBit(writeByte, _outputList.MappingBackward);
+
+            int portId = _outputList.MappingBackward < 8 ? 2 : 3;
+
+            try
+            {
+                DigitalWrite(_credenIOCard1, portId, writeByte);
+
+                var stopwatch = Stopwatch.StartNew();
+                while (_sensorStatus.StatusMappingBackward == 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                    long elapsedMS = stopwatch.ElapsedMilliseconds;
+                    if (elapsedMS > mappingTimeOver)
+                    {
+                        throw new TimeoutException("Mapping Backward Timeover");
+                    }
+                    UpdateSensorStatus();
+                    CheckConflictingSensorStates("mappingbackward"); // ✅ Only check mapping-related conflicts
+                }
+
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return true;
+            }
+            catch (TimeoutException)
+            {
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                sErrorCode = ErrorCode.Error_Mapping_Timeover;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                return false;
+            }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during mapping backward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Mapping backward operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unexpected error during mapping backward operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                _errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        // Vacuum On operation
+        public bool VacuumOn(CancellationToken token)
+        {
+            if (!CanExecuteOperation("VacuumOn"))
+            {
+                return false;
+            }
+
+            if (!ConnectionIOCard1)
+                return false;
+
+            int portId = VacuumValve1B < 8 ? 2 : 3;
+
+            try
+            {
+                // **NEW: Check if vacuum is already on before attempting operation**
+                UpdateSensorStatus();
+                if (_sensorStatus.StatusVacuum == 1)
+                {
+                    Debug.WriteLine("Vacuum is already ON - no operation needed");
+                    m_status[9] = (char)VacuumStatus.On;
+                    return true;
+                }
+
+                Debug.WriteLine("Vacuum is OFF - proceeding with vacuum on operation");
+
+                byte writeByte = 0;
+                writeByte = SetBit(writeByte, VacuumValve1B);
+
+                Debug.WriteLine("Turning ON VACUUM VALVE 1B (Card 1, Bit 1)");
+                DigitalWrite(_credenIOCard1, portId, writeByte);
+
+                // **ENHANCED: Dynamic timeout based on system conditions**
+                int timeoutMs = vacuumTimeOver; // Base timeout
+
+                // Check container type or system state for adjusted timeout
+                if (m_status[18] == (char)PodType.Type2) // Adapter type example
+                {
+                    timeoutMs = vacuumTimeOver + 500; // Adapters might need more time
+                }
+
+                var stopwatch = Stopwatch.StartNew();
+
+                while (_sensorStatus.StatusVacuum == 0)
+                {
+                    token.ThrowIfCancellationRequested();
+                    long elapsedMS = stopwatch.ElapsedMilliseconds;
+
+                    if (elapsedMS > timeoutMs)
+                    {
+                        // **ENHANCED: Try recovery before failing**
+                        Debug.WriteLine($"Vacuum On: Timeout after {elapsedMS}ms - attempting recovery");
+
+                        // Turn off valve 1B first
+                        DigitalWrite(_credenIOCard1, portId, (byte)0);
+                        Thread.Sleep(100);
+
+                        // Check if vacuum sensor is now responding
+                        UpdateSensorStatus();
+                        if (_sensorStatus.StatusVacuum == 1)
+                        {
+                            Debug.WriteLine("Vacuum On: Recovery successful - vacuum detected");
+                            m_status[9] = (char)VacuumStatus.On;
+                            return true;
+                        }
+
+                        throw new TimeoutException("Vacuum sensor did not activate - Vacuum On Timeover");
+                    }
+
+                    // **ENHANCED: More responsive status checking**
+                    Thread.Sleep(50); // Shorter delay for more responsive checking
+                    UpdateSensorStatus();
+                }
+
+                Debug.WriteLine("Vacuum sensor activated, turning OFF VACUUM VALVE 1B (Card 1, Bit 1)");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
+                // **NEW: Update status array to reflect actual state**
+                m_status[9] = (char)VacuumStatus.On;
+
+                Debug.WriteLine("Vacuum On operation completed successfully");
+                return true;
+            }
+            catch (TimeoutException ex)
+            {
+                Debug.WriteLine($"Vacuum On timeout: {ex.Message} - activating VACUUM VALVE 1A (Card 1, Bit 0) to close vacuum");
+
+                try
+                {
+                    int valve1APortId = VacuumValve1A < 8 ? 2 : 3;
+                    byte valve1AWriteByte = 0;
+                    valve1AWriteByte = SetBit(valve1AWriteByte, VacuumValve1A);
+
+                    Debug.WriteLine("Turning ON VACUUM VALVE 1A (Card 1, Bit 0) to close vacuum");
+                    DigitalWrite(_credenIOCard1, valve1APortId, valve1AWriteByte);
+
+                    Thread.Sleep(100);
+
+                    Debug.WriteLine("Immediately turning OFF VACUUM VALVE 1A (Card 1, Bit 0)");
+                    DigitalWrite(_credenIOCard1, valve1APortId, (byte)0);
+                }
+                catch (Exception cleanupEx)
+                {
+                    Debug.WriteLine($"Error during timeout vacuum valve 1A operation: {cleanupEx.Message}");
+                }
+
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                sErrorCode = ErrorCode.Error_Vacuum_Timeover;
+                m_status[0] = (char)MachineStatus.UnrecoverableError;
+                _errorMessage = "Vacuum sensor failed to activate within timeout period";
+                return false;
+            }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during vacuum on operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Vacuum on operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unexpected error during vacuum on operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                _errorMessage = ex.Message;
+                return false;
+            }
+        }
+
+        // Vacuum Off operation
+        public bool VacuumOff(CancellationToken token)
+        {
+            if (!CanExecuteOperation("VacuumOff"))
+            {
+                return false;
+            }
+
+            if (!ConnectionIOCard1)
+                return false;
+
+            int portId = VacuumValve1A < 8 ? 2 : 3;
+
+            try
+            {
+                // **NEW: Check if vacuum is already off before attempting operation**
+                UpdateSensorStatus();
+                if (_sensorStatus.StatusVacuum == 0)
+                {
+                    Debug.WriteLine("Vacuum is already OFF - no operation needed");
+                    m_status[9] = (char)VacuumStatus.Off;
+                    return true;
+                }
+
+                Debug.WriteLine("Vacuum is ON - proceeding with vacuum off operation");
+
+                byte writeByte = 0;
+                writeByte = SetBit(writeByte, VacuumValve1A);
+
+                Debug.WriteLine("Turning ON VACUUM VALVE 1A (Card 1, Bit 0) to release vacuum");
+                DigitalWrite(_credenIOCard1, portId, writeByte);
+
+                // **ENHANCED: Shorter initial delay but with status check**
+                Thread.Sleep(100); // Reduced from 200ms
+
+                // **ENHANCED: Dynamic timeout based on system state**
+                int timeoutMs = vacuumTimeOver; // Base timeout
+
+                // Check if we're in a sequence that might need more time
+                if (m_status[3] == (char)Operation.Operating)
+                {
+                    timeoutMs = vacuumTimeOver + 500; // Extra time during operations
+                }
+
+                var stopwatch = Stopwatch.StartNew();
+                while (_sensorStatus.StatusVacuum == 1)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    long elapsedMS = stopwatch.ElapsedMilliseconds;
+                    if (elapsedMS > timeoutMs)
+                    {
+                        // **ENHANCED: Graceful timeout handling**
+                        Debug.WriteLine($"Vacuum Off: Timeout after {elapsedMS}ms - checking final status");
+
+                        // Final status check before declaring failure
+                        UpdateSensorStatus();
+                        if (_sensorStatus.StatusVacuum == 0)
+                        {
+                            Debug.WriteLine("Vacuum Off: Final check shows vacuum is OFF - operation successful");
+                            break;
+                        }
+
+                        throw new TimeoutException("Vacuum Off Timeover - Vacuum sensor did not deactivate");
+                    }
+
+                    // **ENHANCED: More frequent status updates during critical phase**
+                    if (elapsedMS > 500) // After 500ms, check status more frequently
+                    {
+                        Thread.Sleep(50);
+                    }
+                    else
+                    {
+                        Thread.Sleep(100);
+                    }
+
+                    UpdateSensorStatus();
+                }
+
+                // **ENHANCED: Ensure valve is turned off**
+                Debug.WriteLine("Vacuum sensor deactivated, turning OFF VACUUM VALVE 1A (Card 1, Bit 0)");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
+                // **NEW: Update status array to reflect actual state**
+                m_status[9] = (char)VacuumStatus.Off;
+
+                Debug.WriteLine("Vacuum Off operation completed successfully");
+                return true;
+            }
+            catch (TimeoutException ex)
+            {
+                Debug.WriteLine($"Vacuum Off timeout: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
+                // **ENHANCED: For origin operations, be more lenient**
+                string currentOperation = m_status[3] == (char)Operation.Operating ? "during operation" : "during origin";
+                Debug.WriteLine($"Vacuum off timeout occurred {currentOperation}");
+
+                // For origin operations, we might want to be less strict
+                if (m_status[2] != (char)LoadStatus.LoadPosition)
+                {
+                    Debug.WriteLine("Not in load position - treating timeout as recoverable for origin");
+                    m_status[9] = (char)VacuumStatus.Off; // Set status as off anyway
+                    sErrorCode = ErrorCode.Error_VacuumRelease_Timeover; // Use vacuum release error instead
+                    m_status[0] = (char)MachineStatus.RecoverableError; // Make it recoverable
+                }
+                else
+                {
+                    sErrorCode = ErrorCode.Error_VacuumRelease_Timeover;
+                    m_status[0] = (char)MachineStatus.UnrecoverableError;
+                }
+
+                _errorMessage = "Vacuum sensor failed to deactivate within timeout period";
+                return false;
+            }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"Sensor error during vacuum off operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Vacuum off operation was canceled");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Unexpected error during vacuum off operation: {ex.Message}");
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+                _errorMessage = ex.Message;
+                return false;
+            }
+        }
+        #endregion
+
+        #region Mapping Operations
         public async Task MappingOperation_UpToDown_HighSpeed(CancellationToken token, IMappingSettings settings)
         {
             if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
@@ -1632,7 +3112,8 @@ namespace FoupControl
                 if (_mappingData.Count > 0)
                 {
                     string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-                    string savePath = Path.Combine(documentsPath, "FOUP_Mapping_Data_HighSpeed");
+                    //string savePath = Path.Combine(documentsPath, "FOUP_Mapping_Data_HighSpeed");
+                    string savePath = Path.Combine(documentsPath, "FOUP_Mapping_Data_HighSpeed_RepeatabilityTest");
 
                     Debug.WriteLine($"HIGH-SPEED: Exporting {_mappingData.Count} data points to: {savePath}");
                     bool exportSuccess = ExportMappingDataRaw(savePath);
@@ -1663,7 +3144,6 @@ namespace FoupControl
                 Debug.WriteLine("HIGH-SPEED: MappingOperation_UpToDown_HighSpeed finished.");
             }
         }
-
         public async Task MappingOperation_UpToDown(CancellationToken token, IMappingSettings settings)
         {
             if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
@@ -2043,14 +3523,6 @@ namespace FoupControl
                 Debug.WriteLine("MappingOperation_UpToDown finished.");
             }
         }
-
-        /// <summary>
-        /// Performs a mapping operation by moving the elevator from the bottom position upward
-        /// while collecting sensor data
-        /// </summary>
-        /// <param name="token">Cancellation token for the operation</param>
-        /// <param name="settings">Mapping settings containing start/end positions and other parameters</param>
-        /// <returns>Task representing the asynchronous operation</returns>
         public async Task MappingOperation_DownToUp(CancellationToken token, IMappingSettings settings)
         {
             if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
@@ -2455,2481 +3927,6 @@ namespace FoupControl
                 Debug.WriteLine("MappingOperation_DownToUp finished.");
             }
         }
-
-        /// <summary>
-        /// Optimized method for exporting raw mapping data to CSV with minimal processing
-        /// </summary>
-        public bool ExportMappingDataRaw(string savePath)
-        {
-            try
-            {
-                if (_mappingData == null || _mappingData.Count == 0)
-                {
-                    _errorMessage = "No mapping data available to export";
-                    return false;
-                }
-
-                // Create directory if needed
-                if (!Directory.Exists(savePath))
-                    Directory.CreateDirectory(savePath);
-
-                // Create filename with timestamp
-                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                string csvPath = Path.Combine(savePath, $"MappingData_{timestamp}.csv");
-
-                // Use high-performance StreamWriter with large buffer
-                using (StreamWriter writer = new StreamWriter(csvPath, false, System.Text.Encoding.UTF8, 65536))
-                {
-                    // Write simple header
-                    writer.WriteLine("Time (ms),Position (mm),Sensor Value");
-
-                    // Write data with minimal formatting
-                    foreach (var point in _mappingData)
-                    {
-                        // Only write essential columns, avoid string formatting where possible
-                        writer.Write(point.TimeMs);
-                        writer.Write(',');
-                        writer.Write(point.Position.ToString("F2"));
-                        writer.Write(',');
-                        writer.WriteLine(point.SensorValue);
-                    }
-                }
-
-                Debug.WriteLine($"Successfully exported {_mappingData.Count} data points to: {csvPath}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _errorMessage = $"Error exporting data: {ex.Message}";
-                Debug.WriteLine($"Error exporting data: {ex.Message}");
-                return false;
-            }
-        }
-
-
-        /// <summary>
-        /// Gets the current mapping data collection
-        /// </summary>
-        /// <returns>List of mapping data points</returns>
-        public List<DataPoint> GetMappingData()
-        {
-            return _mappingData;
-        }
-
-        private async Task SafelyDisableAllOutputs()
-        {
-            if (ConnectionIOCard1)
-            {
-                try
-                {
-                    DigitalWrite(_credenIOCard1, 2, (byte)0); // Turn off all outputs on port 2
-                    DigitalWrite(_credenIOCard1, 3, (byte)0); // Turn off all outputs on port 3
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error turning off outputs on card 1: {ex.Message}");
-                }
-            }
-
-            if (ConnectionIOCard2)
-            {
-                try
-                {
-                    DigitalWrite(_credenIOCard2, 2, (byte)0); // Turn off all outputs on port 2
-                    DigitalWrite(_credenIOCard2, 3, (byte)0); // Turn off all outputs on port 3
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error turning off outputs on card 2: {ex.Message}");
-                }
-            }
-        }
-
-        // Helper method to retract mapping arm after operation
-        private async Task RetractMappingArmAsync(CancellationToken token)
-        {
-            try
-            {
-                Debug.WriteLine("Retracting mapping arm...");
-                await Task.Delay(300, token); // Small delay before retracting
-
-                byte writeByte = 0;
-                writeByte = SetBit(writeByte, _outputList.MappingForward);
-                int portId = _outputList.MappingForward < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, writeByte);
-
-                int retractRetries = 0;
-                while (retractRetries < 15 && !token.IsCancellationRequested)
-                {
-                    await Task.Delay(100, token);
-                    UpdateSensorStatus();
-                    if (_sensorStatus.StatusMappingForward == 1)
-                    {
-                        Debug.WriteLine("Mapping arm retracted successfully.");
-                        break;
-                    }
-                    retractRetries++;
-                }
-
-                // Turn off output regardless of status
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                if (_sensorStatus.StatusMappingForward != 1)
-                {
-                    Debug.WriteLine("WARNING: Mapping arm may not be fully retracted (Sensor StatusMappingForward not detected).");
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error retracting mapping arm: {ex.Message}");
-                // Still attempt to turn off outputs even if there was an error
-                int portId = _outputList.MappingForward < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-            }
-        }
-
-
-        // Mapping Forward operation (actually retracts the mapping mechanism)
-        public bool MappingForward(CancellationToken token)
-        {
-            if (!ConnectionIOCard1)
-                return false;
-
-            byte writeByte = 0;
-            // Set the mapping forward bit into the writeByte.
-            writeByte = SetBit(writeByte, _outputList.MappingForward);
-
-            try
-            {
-                // Determine port ID based on the output bit number.
-                int portId = _outputList.MappingForward < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, writeByte);
-
-                var stopwatch = Stopwatch.StartNew();
-                while (_sensorStatus.StatusMappingForward == 0)
-                {
-                    token.ThrowIfCancellationRequested();
-                    long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 500)
-                    {
-                        throw new TimeoutException("Mapping Forward Timeover");
-                    }
-                    UpdateSensorStatus();
-                }
-
-                // Turn off mapping forward output
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-                return true;
-            }
-            catch (TimeoutException)
-            {
-                DigitalWrite(_credenIOCard1, _outputList.MappingForward < 8 ? 2 : 3, (byte)0);
-                sErrorCode = ErrorCode.Error_Mapping_Timeover;
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                DigitalWrite(_credenIOCard1, _outputList.MappingForward < 8 ? 2 : 3, (byte)0);
-                _errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-
-        // Mapping Backward operation (actually extends the mapping mechanism)
-        public bool MappingBackward(CancellationToken token)
-        {
-            if (!ConnectionIOCard1)
-                return false;
-
-            byte writeByte = 0;
-            // Set the mapping backward bit into the writeByte.
-            writeByte = SetBit(writeByte, _outputList.MappingBackward);
-
-            try
-            {
-                // Determine port ID based on the output bit.
-                int portId = _outputList.MappingBackward < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, writeByte);
-
-                var stopwatch = Stopwatch.StartNew();
-                while (_sensorStatus.StatusMappingBackward == 0)
-                {
-                    token.ThrowIfCancellationRequested();
-                    long elapsedMS = stopwatch.ElapsedMilliseconds;
-                    if (elapsedMS > 500)
-                    {
-                        throw new TimeoutException("Mapping Backward Timeover");
-                    }
-                    UpdateSensorStatus();
-                }
-
-                // Turn off mapping backward output
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-                return true;
-            }
-            catch (TimeoutException)
-            {
-                DigitalWrite(_credenIOCard1, _outputList.MappingBackward < 8 ? 2 : 3, (byte)0);
-                sErrorCode = ErrorCode.Error_Mapping_Timeover;
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                DigitalWrite(_credenIOCard1, _outputList.MappingBackward < 8 ? 2 : 3, (byte)0);
-                _errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        // Vacuum On operation
-        public bool VacuumOn(CancellationToken token)
-        {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
-
-            if (!ConnectionIOCard1)
-                return false;
-
-            try
-            {
-                // Use global constant for VACUUM VALVE 1B
-                int portId = VacuumValve1B < 8 ? 2 : 3;
-
-                // Turn ON VACUUM VALVE 1B (Bit 1)
-            byte writeByte = 0;
-                writeByte = SetBit(writeByte, VacuumValve1B);
-
-                Debug.WriteLine("Turning ON VACUUM VALVE 1B (Card 1, Bit 1)");
-                DigitalWrite(_credenIOCard1, portId, writeByte);
-
-                var stopwatch = Stopwatch.StartNew();
-
-                // Keep the valve ON and monitor the vacuum sensor
-                while (_sensorStatus.StatusVacuum == 0)
-                {
-                    token.ThrowIfCancellationRequested();
-                    long elapsedMS = stopwatch.ElapsedMilliseconds;
-
-                    // Only timeout if sensor doesn't turn to 1 within the timeout period
-                    if (elapsedMS > 1500)
-                    {
-                        throw new TimeoutException("Vacuum sensor did not activate - Vacuum On Timeover");
-                    }
-
-                    // Update sensor status to check vacuum sensor
-                    UpdateSensorStatus();
-                }
-
-                // Vacuum sensor has turned to 1, turn OFF VACUUM VALVE 1B
-                Debug.WriteLine("Vacuum sensor activated, turning OFF VACUUM VALVE 1B (Card 1, Bit 1)");
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                return true;
-            }
-            catch (TimeoutException ex)
-            {
-                // On timeout (sensor didn't activate), turn on VACUUM VALVE 1A (Bit 0) to close vacuum
-                Debug.WriteLine($"Timeout occurred: {ex.Message} - activating VACUUM VALVE 1A (Card 1, Bit 0) to close vacuum");
-
-                try
-                {
-                    int valve1APortId = VacuumValve1A < 8 ? 2 : 3;
-
-                    // Turn ON VACUUM VALVE 1A (Bit 0)
-                    byte valve1AWriteByte = 0;
-                    valve1AWriteByte = SetBit(valve1AWriteByte, VacuumValve1A);
-
-                    Debug.WriteLine("Turning ON VACUUM VALVE 1A (Card 1, Bit 0) to close vacuum");
-                    DigitalWrite(_credenIOCard1, valve1APortId, valve1AWriteByte);
-
-                    // Brief delay to ensure valve activates
-                    Thread.Sleep(100);
-
-                    // Immediately turn OFF VACUUM VALVE 1A
-                    Debug.WriteLine("Immediately turning OFF VACUUM VALVE 1A (Card 1, Bit 0)");
-                    DigitalWrite(_credenIOCard1, valve1APortId, (byte)0);
-                }
-                catch (Exception cleanupEx)
-                {
-                    Debug.WriteLine($"Error during timeout vacuum valve 1A operation: {cleanupEx.Message}");
-                }
-
-                // Ensure all outputs are turned off
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
-                sErrorCode = ErrorCode.Error_Vacuum_Timeover;
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                _errorMessage = "Vacuum sensor failed to activate within timeout period";
-                return false;
-            }
-            catch (Exception ex)
-            {
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
-                _errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-
-        // Vacuum Off operation
-        public bool VacuumOff(CancellationToken token)
-        {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
-
-            if (!ConnectionIOCard1)
-                return false;
-
-            try
-            {
-                // Use global constant for VACUUM VALVE 1A
-                int portId = VacuumValve1A < 8 ? 2 : 3;
-
-                // Turn ON VACUUM VALVE 1A (Bit 0)
-                byte writeByte = 0;
-                writeByte = SetBit(writeByte, VacuumValve1A);
-
-                Debug.WriteLine("Turning ON VACUUM VALVE 1A (Card 1, Bit 0) to release vacuum");
-                DigitalWrite(_credenIOCard1, portId, writeByte);
-
-                // Brief delay to ensure valve activates and releases vacuum
-                Thread.Sleep(200);
-
-                var stopwatch = Stopwatch.StartNew();
-                while (_sensorStatus.StatusVacuum == 1)
-                {
-                    token.ThrowIfCancellationRequested();
-                    long elapsedMS = stopwatch.ElapsedMilliseconds;
-
-                    // Check for timeout
-                    if (elapsedMS > 1500)
-                    {
-                        throw new TimeoutException("Vacuum Off Timeover - Vacuum sensor did not deactivate");
-                    }
-
-                    // Update sensor status to check vacuum sensor
-                    UpdateSensorStatus();
-                }
-
-                // Vacuum sensor has turned to 0 (vacuum released), turn OFF VACUUM VALVE 1A
-                Debug.WriteLine("Vacuum sensor deactivated, turning OFF VACUUM VALVE 1A (Card 1, Bit 0)");
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                return true;
-            }
-            catch (TimeoutException ex)
-            {
-                Debug.WriteLine($"Timeout occurred: {ex.Message}");
-
-                // Ensure valve is turned off even on timeout
-                int portId = VacuumValve1A < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                sErrorCode = ErrorCode.Error_Vacuum_Timeover;
-                m_status[0] = (char)MachineStatus.UnrecoverableError;
-                _errorMessage = "Vacuum sensor failed to deactivate within timeout period";
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during vacuum off operation: {ex.Message}");
-
-                // Ensure valve is turned off on any exception
-                int portId = VacuumValve1A < 8 ? 2 : 3;
-                DigitalWrite(_credenIOCard1, portId, (byte)0);
-
-                _errorMessage = ex.Message;
-                return false;
-            }
-        }
-
-        public void ForceClose(CancellationTokenSource cts)
-        {
-            cts?.Cancel();
-
-            if (ConnectionIOCard1)
-            {
-                // Turn off all outputs on card 1
-                DigitalWrite(_credenIOCard1, 2, (byte)0);
-                DigitalWrite(_credenIOCard1, 3, (byte)0);
-            }
-
-            if (ConnectionIOCard2)
-            {
-                // Turn off all outputs on card 2
-                DigitalWrite(_credenIOCard2, 2, (byte)0);
-                DigitalWrite(_credenIOCard2, 3, (byte)0);
-            }
-
-            UpdateSensorStatus();
-        }
-        #endregion
-
-        #region Sequence Operations
-        // LOCK
-        public void Lock(CancellationToken token)
-        {
-            if (IsErrorExist())
-            {
-                return;
-            }
-
-            bool bMotionDone = false;
-
-            m_status[3] = (char)Operation.Operating;
-            bMotionDone = Clamp(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                return;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            bMotionDone = Unlatch(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                return;
-            }
-
-            m_status[3] = (char)Operation.Stopping;
-        }
-
-        // UNLK
-        public void Unlock(CancellationToken token)
-        {
-            if (IsErrorExist())
-            {
-                return;
-            }
-
-            bool bMotionDone = false;
-
-            m_status[3] = (char)Operation.Operating;
-            bMotionDone = Latch(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                return;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            bMotionDone = Unclamp(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                return;
-            }
-
-            m_status[3] = (char)Operation.Stopping;
-        }
-
-        // Load sequence
-        public bool ExecuteFOUPLoadSequence(CancellationToken token)
-        {
-            if (IsErrorExist())
-            {
-                return false;
-            }
-
-            bool bMotionDone = false;
-
-            m_status[3] = (char)Operation.Operating;
-
-            // Step 1: Clamp
-            Debug.WriteLine("Executing clamp operation...");
-            bMotionDone = Clamp(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Clamp operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 2: Dock Forward
-            Debug.WriteLine("Executing dock forward operation...");
-            bMotionDone = DockForward(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Dock forward operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 3: Latch
-            Debug.WriteLine("Executing latch operation...");
-            bMotionDone = Latch(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Latch operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 4: Vacuum On
-            Debug.WriteLine("Executing vacuum on operation...");
-            bMotionDone = VacuumOn(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Vacuum on operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 5: Door Forward (Open)
-            Debug.WriteLine("Executing door open operation...");
-            bMotionDone = DoorForward(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Door forward operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 6: Elevator Down
-            Debug.WriteLine("Executing elevator down operation...");
-            bMotionDone = ElevatorDown(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Elevator down operation failed");
-                return false;
-            }
-
-            m_status[2] = (char)LoadStatus.LoadPosition;
-            m_status[3] = (char)Operation.Stopping;
-            Debug.WriteLine("FOUP load sequence completed successfully");
-            return true;
-        }
-
-        // Unified sequence executor
-        public async Task<bool> ExecuteUnifiedLoadMappingSequence(
-            CancellationToken token,
-            IMappingSettings settings,
-            SequenceType sequenceType,
-            OperationType operationType = OperationType.Load,
-            IProgress<string> progress = null)
-        {
-            progress?.Report($"Starting {sequenceType} {operationType} sequence");
-
-            if (IsErrorExist())
-            {
-                Debug.WriteLine("Cannot execute operation due to existing errors");
-                return false;
-            }
-
-            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
-            {
-                _errorMessage = "Not all cards are connected.";
-                Debug.WriteLine("Error: Not all cards are connected");
-                return false;
-            }
-
-            if (settings == null)
-            {
-                _errorMessage = "Settings object (IMappingSettings) is null.";
-                Debug.WriteLine("Error: Settings object is null");
-                return false;
-            }
-
-            double mmPerPulse = settings.MmPerPulse;
-            if (mmPerPulse <= 0)
-            {
-                _errorMessage = "Invalid MmPerPulse setting (must be > 0).";
-                Debug.WriteLine($"Error: Invalid MmPerPulse setting: {mmPerPulse}");
-                return false;
-            }
-
-            try
-            {
-                m_status[3] = (char)Operation.Operating;
-
-                // Get the sequence steps based on type and operation
-                var sequenceSteps = GetSequenceSteps(sequenceType, operationType);
-
-                // Execute the sequence steps
-                foreach (var step in sequenceSteps)
-                {
-                    if (step.IsRequired)
-                    {
-                        progress?.Report($"Executing {step.Name}...");
-                        Debug.WriteLine($"Executing {step.Name} operation...");
-
-                        bool success = step.Operation(token);
-                        if (!success)
-                        {
-                            m_status[3] = (char)Operation.Stopping;
-                            Debug.WriteLine($"{step.Name} operation failed");
-                            return false;
-                        }
-
-                        await Task.Delay(DelayBetweenTask, token);
-                    }
-                }
-
-                // Only perform mapping operation during load sequences
-                if (operationType == OperationType.Load)
-                {
-                    progress?.Report("Performing mapping analysis...");
-                    Debug.WriteLine("Starting mapping operation with analysis...");
-                    var analysisResult = await MappingOperation_UpToDown_WithAnalysis(token, settings);
-
-                    if (!ValidateAnalysisResult(analysisResult))
-                    {
-                        m_status[3] = (char)Operation.Stopping;
-                        return false;
-                    }
-
-                    LogAnalysisResults(analysisResult);
-                    _lastMappingAnalysisResult = analysisResult;
-                }
-
-                // Update status
-                m_status[2] = (char)LoadStatus.LoadPosition;
-                m_status[3] = (char)Operation.Stopping;
-
-                progress?.Report($"{sequenceType} {operationType} sequence completed successfully");
-                Debug.WriteLine($"{sequenceType} {operationType} sequence completed successfully");
-
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine($"{sequenceType} {operationType} sequence was canceled");
-                await SafelyDisableAllOutputs();
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _errorMessage = $"Error during {sequenceType} {operationType}: {ex.Message}";
-                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
-                await SafelyDisableAllOutputs();
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return false;
-            }
-        }
-        public async Task<FOUPCtrl.WaferMap.MappingAnalysisResult> ExecuteUnifiedMappingOperation(
-            CancellationToken token,
-            IMappingSettings settings,
-            SequenceType sequenceType,
-            OperationType operationType,
-            IProgress<string> progress = null)
-        {
-            bool success;
-            if (operationType == OperationType.Load)
-            {
-                success = await ExecuteUnifiedLoadMappingSequence(
-                    token,
-                    settings,
-                    sequenceType,
-                    operationType,
-                    progress);
-            }
-            else // Unload
-            {
-                success = await ExecuteUnifiedUnloadMappingSequence(
-                    token,
-                    settings,
-                    sequenceType,
-                    operationType,
-                    progress);
-            }
-
-            if (success)
-            {
-                if (operationType == OperationType.Load)
-                {
-                    var analysisResult = GetLastMappingAnalysisResult();
-                    return analysisResult;
-                }
-                else
-                {
-                    // For Unload, mapping analysis may not be relevant
-                    return null;
-                }
-            }
-            else
-            {
-                // Optionally, you can throw or return a result with error info
-                throw new InvalidOperationException(ErrorMessage);
-            }
-        }
-
-
-        public async Task<bool> ExecuteUnifiedUnloadMappingSequence(
-            CancellationToken token,
-            IMappingSettings settings,
-            SequenceType sequenceType,
-            OperationType operationType = OperationType.Unload,
-            IProgress<string> progress = null)
-        {
-            progress?.Report($"Starting {sequenceType} {operationType} sequence (with mapping)");
-
-            if (IsErrorExist())
-            {
-                Debug.WriteLine("Cannot execute operation due to existing errors");
-                return false;
-            }
-
-            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
-            {
-                _errorMessage = "Not all cards are connected.";
-                Debug.WriteLine("Error: Not all cards are connected");
-                return false;
-            }
-
-            if (settings == null)
-            {
-                _errorMessage = "Settings object (IMappingSettings) is null.";
-                Debug.WriteLine("Error: Settings object is null");
-                return false;
-            }
-
-            double mmPerPulse = settings.MmPerPulse;
-            if (mmPerPulse <= 0)
-            {
-                _errorMessage = "Invalid MmPerPulse setting (must be > 0).";
-                Debug.WriteLine($"Error: Invalid MmPerPulse setting: {mmPerPulse}");
-                return false;
-            }
-
-            try
-            {
-                m_status[3] = (char)Operation.Operating;
-
-                // Get the sequence steps based on type and operation
-                var sequenceSteps = GetSequenceSteps(sequenceType, operationType);
-
-                // Execute the sequence steps
-                foreach (var step in sequenceSteps)
-                {
-                    if (step.IsRequired)
-                    {
-                        progress?.Report($"Executing {step.Name}...");
-                        Debug.WriteLine($"Executing {step.Name} operation...");
-
-                        bool success = step.Operation(token);
-                        if (!success)
-                        {
-                            m_status[3] = (char)Operation.Stopping;
-                            Debug.WriteLine($"{step.Name} operation failed");
-                            return false;
-                        }
-
-                        await Task.Delay(DelayBetweenTask, token);
-                    }
-                }
-
-                // Always perform mapping operation during unload sequences (DownToUp)
-                progress?.Report("Performing mapping analysis (DownToUp)...");
-                Debug.WriteLine("Starting mapping operation (DownToUp)...");
-                await MappingOperation_DownToUp_WithAnalysis(token, settings);
-
-                // Optionally, you can analyze and store mapping results here if needed
-
-                // Update status
-                m_status[2] = (char)LoadStatus.HomePosition;
-                m_status[3] = (char)Operation.Stopping;
-
-                progress?.Report($"{sequenceType} {operationType} sequence (with mapping) completed successfully");
-                Debug.WriteLine($"{sequenceType} {operationType} sequence (with mapping) completed successfully");
-
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine($"{sequenceType} {operationType} sequence was canceled");
-                await SafelyDisableAllOutputs();
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _errorMessage = $"Error during {sequenceType} {operationType}: {ex.Message}";
-                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
-                await SafelyDisableAllOutputs();
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return false;
-            }
-        }
-
-        // Helper: Get sequence steps for each type/operation
-        public List<SequenceStep> GetSequenceSteps(SequenceType sequenceType, OperationType operationType)
-        {
-            var steps = new List<SequenceStep>();
-
-            switch (sequenceType)
-            {
-                case SequenceType.FOUP:
-                    steps = operationType == OperationType.Load ? GetFOUPLoadSteps() : GetFOUPUnloadSteps();
-                    break;
-                case SequenceType.Adaptor:
-                    steps = operationType == OperationType.Load ? GetAdaptorLoadSteps() : GetAdaptorUnloadSteps();
-                    break;
-                case SequenceType.FOSB:
-                    steps = operationType == OperationType.Load ? GetFOSBLoadSteps() : GetFOSBUnloadSteps();
-                    break;
-                case SequenceType.N2Purge:
-                    steps = operationType == OperationType.Load ? GetN2PurgeLoadSteps() : GetN2PurgeUnloadSteps();
-                    break;
-                default:
-                    steps = operationType == OperationType.Load ? GetFOUPLoadSteps() : GetFOUPUnloadSteps();
-                    break;
-            }
-
-            return steps;
-        }
-
-        // Define the step lists for each sequence and operation
-        private List<SequenceStep> GetFOUPLoadSteps() => new List<SequenceStep>
-        {
-            new SequenceStep { Name = "Dock Forward", Operation = DockForward },
-            new SequenceStep { Name = "Clamp", Operation = Clamp },
-            //new SequenceStep { Name = "Latch", Operation = Latch },
-            //new SequenceStep { Name = "Vacuum On", Operation = VacuumOn },
-            //new SequenceStep { Name = "Door Forward", Operation = DoorForward },
-            //new SequenceStep { Name = "Elevator Down", Operation = ElevatorDown }
-        };
-
-        private List<SequenceStep> GetAdaptorLoadSteps() => new List<SequenceStep>
-        {
-            //new SequenceStep { Name = "Door Forward", Operation = DoorForward },
-            //new SequenceStep { Name = "Vacuum On", Operation = VacuumOn },
-            new SequenceStep { Name = "Dock Forward", Operation = DockForward },
-            //new SequenceStep { Name = "Clamp", Operation = Clamp },
-            //new SequenceStep { Name = "Unlatch", Operation = Unlatch }
-        };
-
-        private List<SequenceStep> GetFOSBLoadSteps() => new List<SequenceStep>
-        {
-            //new SequenceStep { Name = "Door Forward", Operation = DoorForward },
-            new SequenceStep { Name = "Clamp", Operation = Clamp },
-            //new SequenceStep { Name = "Dock Forward", Operation = DockForward },
-            //new SequenceStep { Name = "Unlatch", Operation = Unlatch }
-        };
-
-        private List<SequenceStep> GetN2PurgeLoadSteps() => new List<SequenceStep>
-        {
-            new SequenceStep { Name = "Door Forward", Operation = DoorForward },
-            new SequenceStep { Name = "Dock Forward", Operation = DockForward },
-            new SequenceStep { Name = "Vacuum On", Operation = VacuumOn },
-            new SequenceStep { Name = "Clamp", Operation = Clamp },
-            new SequenceStep { Name = "Unlatch", Operation = Unlatch }
-        };
-
-        private List<SequenceStep> GetFOUPUnloadSteps() => new List<SequenceStep>
-        {
-            //new SequenceStep { Name = "Elevator Up", Operation = ElevatorUp },
-            //new SequenceStep { Name = "Door Backward", Operation = DoorBackward },
-            //new SequenceStep { Name = "Unlatch", Operation = Unlatch },
-            //new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
-            //new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
-            new SequenceStep { Name = "Unclamp", Operation = Unclamp }
-        };
-
-        private List<SequenceStep> GetAdaptorUnloadSteps() => new List<SequenceStep>
-        {
-            new SequenceStep { Name = "Latch", Operation = Latch },
-            new SequenceStep { Name = "Unclamp", Operation = Unclamp },
-            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
-            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
-            new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
-        };
-
-        private List<SequenceStep> GetFOSBUnloadSteps() => new List<SequenceStep>
-        {
-            new SequenceStep { Name = "Latch", Operation = Latch },
-            new SequenceStep { Name = "Unclamp", Operation = Unclamp },
-            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
-            new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
-        };
-
-        private List<SequenceStep> GetN2PurgeUnloadSteps() => new List<SequenceStep>
-        {
-            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
-            new SequenceStep { Name = "Latch", Operation = Latch },
-            new SequenceStep { Name = "Unclamp", Operation = Unclamp },
-            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
-            new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
-        };
-
-        private List<SequenceStep> GetOriginSteps() => new List<SequenceStep>
-        {
-            //new SequenceStep { Name = "Elevator Up", Operation = ElevatorUp },
-            new SequenceStep { Name = "Mapping Off", Operation = MappingForward },
-            //new SequenceStep { Name = "Door Backward", Operation = DoorBackward },
-            new SequenceStep { Name = "Unlatch", Operation = Unlatch },
-            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
-            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
-            new SequenceStep { Name = "Unclamp", Operation = Unclamp }
-        };
-
-        // Helper: Validate mapping analysis result
-        private bool ValidateAnalysisResult(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
-        {
-            if (analysisResult?.WaferStatus == null)
-            {
-                _errorMessage = "Analysis result or wafer status is null";
-                return false;
-            }
-
-            for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
-            {
-                if (analysisResult.WaferStatus[i] == 99) // Error status
-                {
-                    _errorMessage = $"Mapping analysis failed - error status detected in slot {i + 1}";
-                    Debug.WriteLine($"Mapping analysis failed - error status detected in slot {i + 1}");
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        // Helper: Log mapping analysis results
-        private void LogAnalysisResults(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
-        {
-            Debug.WriteLine($"Mapping analysis completed: {analysisResult.DetectedWaferCount} wafers detected");
-
-            int slotsToLog = Math.Min(analysisResult.ExpectedSlots, 5);
-            for (int i = 0; i < slotsToLog; i++)
-            {
-                string statusText = GetSlotStatusText(analysisResult.WaferStatus[i]);
-                Debug.WriteLine($"Slot {i + 1}: {statusText}, Thickness: {analysisResult.WaferThicknessMm[i]:F3}mm");
-            }
-        }
-
-        // Unload sequence
-        // Unload sequence with revised order: elevator up, door close, unlatch, vacuum off, dock backward, unclamp
-        public bool ExecuteFOUPUnloadSequence(CancellationToken token)
-        {
-            if (IsErrorExist())
-            {
-                return false;
-            }
-
-            bool bMotionDone = false;
-
-            m_status[3] = (char)Operation.Operating;
-
-            // Step 1: Elevator Up
-            Debug.WriteLine("Executing elevator up operation...");
-            bMotionDone = ElevatorUp(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Elevator up operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 2: Door Backward (Close)
-            Debug.WriteLine("Executing door close operation...");
-            bMotionDone = DoorBackward(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Door close operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 3: Unlatch
-            Debug.WriteLine("Executing unlatch operation...");
-            bMotionDone = Unlatch(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Unlatch operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 4: Vacuum Off
-            Debug.WriteLine("Executing vacuum off operation...");
-            bMotionDone = VacuumOff(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Vacuum off operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 5: Dock Backward (Retract)
-            Debug.WriteLine("Executing dock backward operation...");
-            bMotionDone = DockBackward(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Dock backward operation failed");
-                return false;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 6: Unclamp
-            Debug.WriteLine("Executing unclamp operation...");
-            bMotionDone = Unclamp(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Unclamp operation failed");
-                return false;
-            }
-
-            m_status[2] = (char)LoadStatus.HomePosition;
-            m_status[3] = (char)Operation.Stopping;
-            Debug.WriteLine("FOUP unload sequence completed successfully");
-            return true;
-        }
-
-        public async Task<bool> ExecuteFOUPUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            if (IsErrorExist())
-            {
-                return false;
-            }
-
-            UpdateSensorStatus();
-
-            //// Check for pod presence using protrusion sensor
-            //if (_sensorStatus.StatusProtrusion != 1)
-            //{
-            //    _errorMessage = "No POD detected.";
-            //    sStatusCode = FOUPInfo.InterlockExist;
-            //    sInterlockCode = Interlock.NotUnlatched;
-            //    Debug.WriteLine("Error: No POD detected (protrusion sensor)");
-            //    return false;
-            //}
-
-            //// Check unlatch status
-            //if (_sensorStatus.StatusUnlatch != 1)
-            //{
-            //    _errorMessage = "Pod is not unlatched.";
-            //    sStatusCode = FOUPInfo.InterlockExist;
-            //    sInterlockCode = Interlock.NotUnlatched;
-            //    Debug.WriteLine("Error: Pod is not unlatched");
-            //    return false;
-            //}
-
-            //// Check for clamping status
-            //if (_sensorStatus.StatusClamp != 1)
-            //{
-            //    _errorMessage = "Pod is not clamped.";
-            //    sStatusCode = FOUPInfo.InterlockExist;
-            //    sInterlockCode = Interlock.NotUnlatched;
-            //    Debug.WriteLine("Error: Pod is not clamped");
-            //    return false;
-            //}
-
-            //// Check current load status
-            //if (m_status[2] != (char)LoadStatus.LoadPosition)
-            //{
-            //    sStatusCode = FOUPInfo.InterlockExist;
-            //    sInterlockCode = Interlock.NotUnlatched;
-            //    _errorMessage = "Not in Load Position";
-            //    Debug.WriteLine("Error: Not in Load Position");
-            //    return false;
-            //}
-
-            bool bMotionDone = false;
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Execute the mapping operation - CHANGED to use DownToUp instead of UpToDown
-                Debug.WriteLine("Starting mapping operation sequence using bottom-to-top scanning");
-                await MappingOperation_DownToUp(token, settings);  // Changed to DownToUp
-
-                // Give system time to stabilize after mapping
-                await Task.Delay(DelayBetweenTask * 2, token);
-
-                // Continue with latch operation
-                //Debug.WriteLine("Starting latch operation");
-                //bMotionDone = Latch(token);
-                //if (!bMotionDone)
-                //{
-                //    m_status[3] = (char)Operation.Stopping;
-                //    _errorMessage = "Latch operation failed";
-                //    Debug.WriteLine("Error: Latch operation failed");
-                //    return false;
-                //}
-
-                //await Task.Delay(DelayBetweenTask, token);
-
-                // Unclamp operation
-                Debug.WriteLine("Starting unclamp operation");
-                bMotionDone = Unclamp(token);
-                if (!bMotionDone)
-                {
-                    m_status[3] = (char)Operation.Stopping;
-                    _errorMessage = "Unclamp operation failed";
-                    Debug.WriteLine("Error: Unclamp operation failed");
-                    return false;
-                }
-
-                // Operations complete - update status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = (char)LoadStatus.HomePosition;
-                Debug.WriteLine("UnloadingMapping operation completed successfully (using bottom-to-top scanning)");
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                _errorMessage = "Operation was canceled";
-                Debug.WriteLine("Operation was canceled");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                _errorMessage = $"Error during UnloadingMapping: {ex.Message}";
-                Debug.WriteLine($"Error during UnloadingMapping: {ex.Message}");
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Performs the Mapping Auto-Calibration sequence, calculating slot pitch
-        /// and slot 1 position based on detected wafers in the FOUP.
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings that include start/end positions</param>
-        /// <param name="callbackAction">Optional action to call for status updates</param>
-        /// <returns>Tuple containing (success, avgPitch, slot1Pos, detectedWaferCount, avgThickness)</returns>
-        public async Task<(bool Success, double AvgPitch, double Slot1Pos, int WaferCount, double AvgThickness)>
-        MappingAutoCalibration(CancellationToken token, IMappingSettings settings, Action<string> callbackAction = null)
-        {
-            void Log(string message)
-            {
-                Debug.WriteLine(message);
-                callbackAction?.Invoke(message);
-            }
-
-            try
-            {
-                Log("--- Starting Mapping Auto Calibration Sequence ---");
-
-                // 1. Verify that settings are provided
-                if (settings == null)
-                {
-                    Log("Auto Calibration Error: No settings provided");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                // 2. Verify start and end positions are set properly
-                if (Math.Abs(settings.MapEndPositionMm) <= Math.Abs(settings.MapStartPositionMm))
-                {
-                    Log($"Auto Calibration Error: Invalid mapping range - Start: {settings.MapStartPositionMm}, End: {settings.MapEndPositionMm}");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                // 3. Initialize mapping data collection
-                _mappingData.Clear();
-                Log("Starting elevator movement for auto-calibration...");
-
-                // 4. Ensure appropriate starting position - Elevator should be at bottom position
-                UpdateSensorStatus();
-                if (_sensorStatus.StatusElevatorDown != 1)
-                {
-                    Log("Moving elevator to down position...");
-                    bool elevatorDownSuccess = await Task.Run(() => ElevatorDown(token));
-
-                    // Brief pause to ensure elevator is stable
-                    await Task.Delay(500, token);
-
-                    // Verify down position reached
-                    UpdateSensorStatus();
-                    if (_sensorStatus.StatusElevatorDown != 1)
-                    {
-                        Log("Auto Calibration Error: Could not move elevator to down position");
-                        return (false, 0, 0, 0, 0);
-                    }
-                }
-
-                // 5. Safety check for software limits
-                double softwareMin = -5;  // Minimum allowable position
-                double softwareMax = -1650; // Maximum allowable position (adjust as needed)
-
-                if (settings.MapStartPositionMm > softwareMin || settings.MapEndPositionMm < softwareMax)
-                {
-                    Log($"Auto Calibration Error: Positions exceed software limits - Start: {settings.MapStartPositionMm}, End: {settings.MapEndPositionMm}");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                if (settings.MapStartPositionMm > 0 || settings.MapEndPositionMm < -1650)
-                {
-                    Log($"Auto Calibration Error: Positions exceed software limits - Start: {settings.MapStartPositionMm}, End: {settings.MapEndPositionMm}");
-                    Log($"Valid range is from 0 to -1650");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                // 6. Start the actual mapping operation
-                Log($"Starting mapping scan from {settings.MapStartPositionMm}mm to {settings.MapEndPositionMm}mm");
-
-                // Use the existing MappingOperation_UpToDown_HighSpeed method for better data quality
-                await MappingOperation_UpToDown_HighSpeed(token, settings);
-
-                // 7. Process the collected data
-                Log("Processing mapping data...");
-                var mappingData = GetMappingData();
-
-                if (mappingData == null || mappingData.Count < 10)  // Arbitrary minimum data point threshold
-                {
-                    Log($"Auto Calibration Error: Not enough data points collected ({(mappingData?.Count ?? 0)})");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                // 8. Analyze the data to find wafers and calculate pitch
-                Log($"Analyzing {mappingData.Count} data points to find wafer edges");
-
-                // Find wafer edges in the collected data
-                List<(double startPos, double endPos)> waferEdges = FindWaferEdges(mappingData);
-
-                if (waferEdges.Count < 2)
-                {
-                    Log($"Auto Calibration Error: Not enough wafers detected ({waferEdges.Count})");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                // 9. Calculate wafer centers 
-                List<double> waferCenters = new List<double>();
-                foreach (var edge in waferEdges)
-                {
-                    double center = (edge.startPos + edge.endPos) / 2.0;
-                    waferCenters.Add(center);
-                }
-
-                // Sort by position for initial ordering
-                waferEdges = waferEdges.OrderBy(w => Math.Abs(w.startPos)).ToList();
-                Log($"Found {waferEdges.Count} wafers in the mapping data (sorted by position).");
-
-                // Recalculate wafer centers after sorting
-                waferCenters.Clear();
-                foreach (var edge in waferEdges)
-                {
-                    double center = (edge.startPos + edge.endPos) / 2.0;
-                    waferCenters.Add(center);
-                }
-
-                // Determine if we're in a negative coordinate system (similar to ProcessTrainingData)
-                bool isNegativeCoordinateSystem = waferCenters.Any() && waferCenters[0] < 0;
-                Log($"Detected coordinate system: {(isNegativeCoordinateSystem ? "Negative" : "Positive")}");
-
-                // For negative coordinate systems, the first slot is the one with highest value (closest to zero)
-                // For positive coordinate systems, the first slot is the one with lowest value
-                if (isNegativeCoordinateSystem)
-                {
-                    // Sort from highest to lowest (closest to zero first)
-                    waferCenters = waferCenters.OrderByDescending(c => c).ToList();
-                }
-                else
-                {
-                    // Sort from lowest to highest
-                    waferCenters = waferCenters.OrderBy(c => c).ToList();
-                }
-
-                double firstWaferCenterMm = waferCenters.First();
-                double lastWaferCenterMm = waferCenters.Last();
-
-                Log($"First wafer center: {firstWaferCenterMm:F3}mm");
-                Log($"Last wafer center: {lastWaferCenterMm:F3}mm");
-
-                // Get expected slot count from settings
-                int expectedSlots = 25; // Default to 25 if we can't get it from settings
-
-                // Try to get the slot count from MappingTable via IMappingSettings
-                try
-                {
-                    var settingsWithTables = settings as dynamic;
-                    if (settingsWithTables != null)
-                    {
-                        // Get MappingTableNo from settings if it's a MappingTypeProfile
-                        int mappingTableNo = 1;
-                        if (settings is MappingTypeProfile mappingProfile)
-                        {
-                            mappingTableNo = mappingProfile.MappingTableNo;
-                            Log($"Using mapping table number {mappingTableNo} from profile");
-                        }
-
-                        // Get the mapping table and read its SlotCount
-                        var mappingTable = settingsWithTables.GetMappingTableByNumber(mappingTableNo);
-                        if (mappingTable != null && mappingTable.SlotCount > 0)
-                        {
-                            expectedSlots = mappingTable.SlotCount;
-                            Log($"Using configured slot count from mapping table: {expectedSlots}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log($"Could not get slot count from settings: {ex.Message}");
-                    Log($"Using default slot count: {expectedSlots}");
-                }
-
-                // Calculate pitch - will be negative in negative coordinate system (same as ProcessTrainingData)
-                double distance = lastWaferCenterMm - firstWaferCenterMm;
-                int numberOfGaps = expectedSlots - 1;
-
-                if (numberOfGaps <= 0)
-                {
-                    Log($"Auto Calibration Error: Invalid expected slots count ({expectedSlots}). Must be > 1.");
-                    return (false, 0, 0, 0, 0);
-                }
-
-                // Calculate average pitch (maintains sign for negative coordinates)
-                double avgPitch = distance / numberOfGaps;
-
-                // First wafer center is our slot 1 position
-                double slot1Pos = firstWaferCenterMm;
-
-                Log($"Distance between first and last wafer: {distance:F3}mm");
-                Log($"Average pitch calculation: {distance:F3}mm ÷ {numberOfGaps} gaps = {avgPitch:F3}mm/slot");
-                Log($"Using first wafer center as slot 1 position: {slot1Pos:F3}mm");
-
-                // 10. Calculate wafer thickness for reference
-                double avgThickness = 0;
-                foreach (var edge in waferEdges)
-                {
-                    avgThickness += Math.Abs(edge.endPos - edge.startPos);
-                }
-                avgThickness /= waferEdges.Count;
-
-                // 11. Log the results
-                Log("Auto calibration completed successfully");
-                Log($"Detected average pitch: {avgPitch:F3} mm");
-                Log($"First slot position (slot 1): {slot1Pos:F3} mm");
-                Log($"Detected wafer count: {waferEdges.Count}");
-                Log($"Detected average thickness: {avgThickness:F3} mm");
-
-                // 12. Return the elevator to down position
-                Log("Returning elevator to down position...");
-                await Task.Run(() => ElevatorDown(token));
-
-                // 13. Return calibration results
-                Log("--- Mapping Auto Calibration Complete ---");
-
-                return (true, avgPitch, slot1Pos, waferEdges.Count, avgThickness);
-            }
-            catch (OperationCanceledException)
-            {
-                Log("Mapping auto-calibration was cancelled");
-                return (false, 0, 0, 0, 0);
-            }
-            catch (Exception ex)
-            {
-                Log($"Auto Calibration Error: {ex.Message}");
-                return (false, 0, 0, 0, 0);
-            }
-        }
-
-
-        // Helper method to find wafer edges in the mapping data
-        private List<(double startPos, double endPos)> FindWaferEdges(List<FOUP_Ctrl.DataPoint> data)
-        {
-            List<(double startPos, double endPos)> edges = new List<(double startPos, double endPos)>();
-            double? currentStart = null;
-
-            for (int i = 1; i < data.Count; i++)
-            {
-                // Rising edge (start of wafer detection)
-                if (data[i - 1].SensorValue == 0 && data[i].SensorValue == 1)
-                {
-                    currentStart = data[i].Position;
-                }
-                // Falling edge (end of wafer detection)
-                else if (data[i - 1].SensorValue == 1 && data[i].SensorValue == 0 && currentStart.HasValue)
-                {
-                    edges.Add((currentStart.Value, data[i - 1].Position));
-                    currentStart = null;
-                }
-            }
-
-            // If we have a start without an end (e.g., scan ended while on a wafer)
-            if (currentStart.HasValue && data.Count > 0)
-            {
-                // Use the last position as the end
-                edges.Add((currentStart.Value, data[data.Count - 1].Position));
-            }
-
-            return edges;
-        }
-
-        // Mapping sequence
-        public void Mapping(CancellationToken token)
-        {
-            if (IsErrorExist())
-            {
-                return;
-            }
-
-            bool bMotionDone = false;
-
-            m_status[3] = (char)Operation.Operating;
-            m_status[17] = (char)MappingStatus.InProcess;
-
-            // Step 1: Extend the mapping arms
-            bMotionDone = MappingBackward(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 2: Move elevator down to map
-            bMotionDone = ElevatorDown(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return;
-            }
-            Thread.Sleep(DelayBetweenTask);
-
-            // Step 3: Retract the mapping arms
-            bMotionDone = MappingForward(token);
-            if (!bMotionDone)
-            {
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return;
-            }
-
-            m_status[3] = (char)Operation.Stopping;
-            m_status[17] = (char)MappingStatus.Completed;
-        }
-        #endregion
-
-        #region Status Methods
-        // STAS
-        public string GetStatus()
-        {
-            UpdateSensorStatus();
-            return string.Concat(m_status);
-        }
-
-        // STA1
-        public string GetStatus1()
-        {
-            UpdateSensorStatus();
-            string temp = string.Concat(m_status);
-            return temp.Substring(0, 10);
-        }
-
-        // STA2
-        public string GetStatus2()
-        {
-            UpdateSensorStatus();
-            string temp = string.Concat(m_status);
-            return temp.Substring(10, 10);
-        }
-
-        public string GetStatusCode()
-        {
-            if (sErrorCode != "00")
-                sStatusCode = "05";
-            else
-                sStatusCode = "00";
-            return sStatusCode;
-        }
-
-        // RSET
-        public void ResetError()
-        {
-            sErrorCode = "00";
-            sInterlockCode = "00";
-            m_status[0] = (char)MachineStatus.Normal;
-        }
-        #endregion
-
-        /// <summary>
-        /// Executes the Adaptor-specific load sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <returns>True if the sequence completed successfully, false otherwise</returns>
-        public bool ExecuteAdaptorLoadSequence(CancellationToken token)
-        {
-            Debug.WriteLine("Executing Adaptor-specific load sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Example custom sequence for Adaptor type
-                bool success = DoorForward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Load: Door forward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                // Additional step for Adaptor type
-                success = VacuumOn(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Load: Vacuum on failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DockForward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Load: Dock forward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Clamp(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Load: Clamp failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Unlatch(token);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = success ? (char)LoadStatus.LoadPosition : m_status[2];
-
-                Debug.WriteLine("Adaptor Load: " + (success ? "Completed successfully" : "Failed at unlatch step"));
-                return success;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during Adaptor Load sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the FOSB-specific load sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <returns>True if the sequence completed successfully, false otherwise</returns>
-        public bool ExecuteFOSBLoadSequence(CancellationToken token)
-        {
-            Debug.WriteLine("Executing FOSB-specific load sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Example custom sequence for FOSB type
-                bool success = DoorForward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("FOSB Load: Door forward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                // FOSB might have a different step order
-                success = Clamp(token);
-                if (!success)
-                {
-                    Debug.WriteLine("FOSB Load: Clamp failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DockForward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("FOSB Load: Dock forward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Unlatch(token);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = success ? (char)LoadStatus.LoadPosition : m_status[2];
-
-                Debug.WriteLine("FOSB Load: " + (success ? "Completed successfully" : "Failed at unlatch step"));
-                return success;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during FOSB Load sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the N2PURGE-specific load sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <returns>True if the sequence completed successfully, false otherwise</returns>
-        public bool ExecuteN2PurgeLoadSequence(CancellationToken token)
-        {
-            Debug.WriteLine("Executing N2PURGE-specific load sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Example custom sequence for N2PURGE type
-                bool success = DoorForward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Load: Door forward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DockForward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Load: Dock forward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                // N2PURGE needs vacuum before clamping
-                success = VacuumOn(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Load: Vacuum on failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Clamp(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Load: Clamp failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Unlatch(token);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = success ? (char)LoadStatus.LoadPosition : m_status[2];
-
-                Debug.WriteLine("N2PURGE Load: " + (success ? "Completed successfully" : "Failed at unlatch step"));
-                return success;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during N2PURGE Load sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the Adaptor-specific unload sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <returns>True if the sequence completed successfully, false otherwise</returns>
-        public bool ExecuteAdaptorUnloadSequence(CancellationToken token)
-        {
-            Debug.WriteLine("Executing Adaptor-specific unload sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Custom unload sequence for Adaptor type
-                bool success = Latch(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Unload: Latch failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Unclamp(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Unload: Unclamp failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DockBackward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Unload: Dock backward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                // Extra step for Adaptor
-                success = VacuumOff(token);
-                if (!success)
-                {
-                    Debug.WriteLine("Adaptor Unload: Vacuum off failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DoorBackward(token);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = success ? (char)LoadStatus.HomePosition : m_status[2];
-
-                Debug.WriteLine("Adaptor Unload: " + (success ? "Completed successfully" : "Failed at door backward step"));
-                return success;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during Adaptor Unload sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the FOSB-specific unload sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <returns>True if the sequence completed successfully, false otherwise</returns>
-        public bool ExecuteFOSBUnloadSequence(CancellationToken token)
-        {
-            Debug.WriteLine("Executing FOSB-specific unload sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Custom unload sequence for FOSB type
-                bool success = Latch(token);
-                if (!success)
-                {
-                    Debug.WriteLine("FOSB Unload: Latch failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Unclamp(token);
-                if (!success)
-                {
-                    Debug.WriteLine("FOSB Unload: Unclamp failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DockBackward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("FOSB Unload: Dock backward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DoorBackward(token);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = success ? (char)LoadStatus.HomePosition : m_status[2];
-
-                Debug.WriteLine("FOSB Unload: " + (success ? "Completed successfully" : "Failed at door backward step"));
-                return success;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during FOSB Unload sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the N2PURGE-specific unload sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <returns>True if the sequence completed successfully, false otherwise</returns>
-        public bool ExecuteN2PurgeUnloadSequence(CancellationToken token)
-        {
-            Debug.WriteLine("Executing N2PURGE-specific unload sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // First turn off vacuum for N2PURGE
-                bool success = VacuumOff(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Unload: Vacuum off failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Latch(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Unload: Latch failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = Unclamp(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Unload: Unclamp failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DockBackward(token);
-                if (!success)
-                {
-                    Debug.WriteLine("N2PURGE Unload: Dock backward failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                Thread.Sleep(DelayBetweenTask);
-
-                success = DoorBackward(token);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = success ? (char)LoadStatus.HomePosition : m_status[2];
-
-                Debug.WriteLine("N2PURGE Unload: " + (success ? "Completed successfully" : "Failed at door backward step"));
-                return success;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during N2PURGE Unload sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-
-
-        /// <summary>
-        /// Executes the FOUP-specific load with mapping sequence, performing load operations followed by mapping analysis
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task<bool> indicating success or failure of the operation</returns>
-        public async Task<bool> ExecuteFOUPLoadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            Debug.WriteLine("Executing FOUP-specific load+mapping sequence");
-
-            if (IsErrorExist())
-            {
-                Debug.WriteLine("Cannot execute operation due to existing errors");
-                return false;
-            }
-
-            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
-            {
-                _errorMessage = "Not all cards are connected.";
-                Debug.WriteLine("Error: Not all cards are connected");
-                return false;
-            }
-
-            // Validate settings early
-            if (settings == null)
-            {
-                _errorMessage = "Settings object (IMappingSettings) is null.";
-                Debug.WriteLine("Error: Settings object is null");
-                return false;
-            }
-
-            double mmPerPulse = settings.MmPerPulse;
-            if (mmPerPulse <= 0)
-            {
-                _errorMessage = "Invalid MmPerPulse setting (must be > 0).";
-                Debug.WriteLine($"Error: Invalid MmPerPulse setting: {mmPerPulse}");
-                return false;
-            }
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // PHASE 1: INDIVIDUAL FOUP LOAD OPERATIONS
-                Debug.WriteLine("Executing FOUP load operations...");
-
-                // Step 1: Clamp
-                Debug.WriteLine("Executing clamp operation...");
-                bool bMotionDone = Clamp(token);
-                if (!bMotionDone)
-                {
-                    m_status[3] = (char)Operation.Stopping;
-                    Debug.WriteLine("Clamp operation failed");
-                    return false;
-                }
-                await Task.Delay(DelayBetweenTask, token);
-
-                // Step 2: Dock Forward
-                Debug.WriteLine("Executing dock forward operation...");
-                bMotionDone = DockForward(token);
-                if (!bMotionDone)
-                {
-                    m_status[3] = (char)Operation.Stopping;
-                    Debug.WriteLine("Dock forward operation failed");
-                    return false;
-                }
-                await Task.Delay(DelayBetweenTask, token);
-
-                //// Step 3: Latch
-                //Debug.WriteLine("Executing latch operation...");
-                //bMotionDone = Latch(token);
-                //if (!bMotionDone)
-                //{
-                //    m_status[3] = (char)Operation.Stopping;
-                //    Debug.WriteLine("Latch operation failed");
-                //    return false;
-                //}
-                //await Task.Delay(DelayBetweenTask, token);
-
-                //// Step 4: Vacuum On (Uncommented - usually required for FOUP operations)
-                //Debug.WriteLine("Executing vacuum on operation...");
-                //bMotionDone = VacuumOn(token);
-                //if (!bMotionDone)
-                //{
-                //    m_status[3] = (char)Operation.Stopping;
-                //    Debug.WriteLine("Vacuum on operation failed");
-                //    return false;
-                //}
-                //await Task.Delay(DelayBetweenTask, token);
-
-                //// Step 5: Door Forward (Open) (Uncommented - usually required to access wafers)
-                //Debug.WriteLine("Executing door open operation...");
-                //bMotionDone = DoorForward(token);
-                //if (!bMotionDone)
-                //{
-                //    m_status[3] = (char)Operation.Stopping;
-                //    Debug.WriteLine("Door forward operation failed");
-                //    return false;
-                //}
-                //await Task.Delay(DelayBetweenTask, token);
-
-                // PHASE 2: PERFORM MAPPING OPERATION WITH ANALYSIS
-                Debug.WriteLine("Starting mapping operation with analysis...");
-                var analysisResult = await MappingOperation_UpToDown_WithAnalysis(token, settings);
-
-                // Check if analysis was successful
-                bool analysisSuccessful = true;
-                for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
-                {
-                    if (analysisResult.WaferStatus[i] == 99) // Check if any slot has error status
-                    {
-                        analysisSuccessful = false;
-                        break;
-                    }
-                }
-
-                if (!analysisSuccessful)
-                {
-                    _errorMessage = "Mapping analysis failed - error status detected";
-                    Debug.WriteLine("Mapping analysis failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Log analysis results
-                Debug.WriteLine($"Mapping analysis completed: {analysisResult.DetectedWaferCount} wafers detected");
-                for (int i = 0; i < Math.Min(analysisResult.ExpectedSlots, 5); i++) // Log first 5 slots as example
-                {
-                    string statusText = GetSlotStatusText(analysisResult.WaferStatus[i]);
-                    Debug.WriteLine($"Slot {i + 1}: {statusText}, Thickness: {analysisResult.WaferThicknessMm[i]:F3}mm");
-                }
-
-                // Update status to indicate successful load and mapping
-                m_status[2] = (char)LoadStatus.LoadPosition;
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("FOUP load+mapping sequence completed successfully");
-
-                // Store the analysis result so it can be accessed by the UI
-                _lastMappingAnalysisResult = analysisResult;
-
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("FOUP load+mapping sequence was canceled");
-                await SafelyDisableAllOutputs();
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _errorMessage = $"Error during FOUP load+mapping: {ex.Message}";
-                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
-                await SafelyDisableAllOutputs();
-                m_status[3] = (char)Operation.Stopping;
-                m_status[17] = (char)MappingStatus.Inexecution;
-                return false;
-            }
-        }
-
-        private FOUPCtrl.WaferMap.MappingAnalysisResult _lastMappingAnalysisResult;
-
-        /// <summary>
-        /// Gets the last mapping analysis result from the most recent mapping operation
-        /// </summary>
-        /// <returns>The last mapping analysis result, or null if no mapping has been performed</returns>
-        public FOUPCtrl.WaferMap.MappingAnalysisResult GetLastMappingAnalysisResult()
-        {
-            return _lastMappingAnalysisResult;
-        }
-
-        // Helper method to convert status codes to readable text
-        private string GetSlotStatusText(int status)
-        {
-            switch (status)
-            {
-                case 0: return "Empty";
-                case 1: return "Normal";
-                case 2: return "Crossed";
-                case 3: return "Thick";
-                case 4: return "Thin";
-                case 5: return "Position Error";
-                case 99: return "Error";
-                default: return $"Unknown ({status})";
-            }
-        }
-
-        /// <summary>
-        /// Executes the Adaptor-specific load with mapping sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task representing the asynchronous operation</returns>
-        public async Task<bool> ExecuteAdaptorLoadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            Debug.WriteLine("Executing Adaptor-specific load+mapping sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // First perform Adaptor-specific load
-                bool loadSuccess = ExecuteAdaptorLoadSequence(token);
-                if (!loadSuccess)
-                {
-                    Debug.WriteLine("Adaptor load+mapping: Load sequence failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false; // Return false on failure
-                }
-
-                // Wait for load to complete
-                await Task.Delay(DelayBetweenTask, token);
-
-                // Then perform mapping with Adaptor-specific parameters
-                await MappingOperation_UpToDown(token, settings);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("Adaptor load+mapping sequence completed successfully");
-                return true; // Return true on success
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("Adaptor load+mapping sequence was canceled");
-                m_status[3] = (char)Operation.Stopping;
-                return false; // Return false on cancellation
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during Adaptor load+mapping sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false; // Return false on exception
-            }
-        }
-
-        /// <summary>
-        /// Executes the FOSB-specific load with mapping sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task representing the asynchronous operation</returns>
-        public async Task<bool> ExecuteFOSBLoadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            Debug.WriteLine("Executing FOSB-specific load+mapping sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // First perform FOSB-specific load
-                bool loadSuccess = ExecuteFOSBLoadSequence(token);
-                if (!loadSuccess)
-                {
-                    Debug.WriteLine("FOSB load+mapping: Load sequence failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Wait for load to complete
-                await Task.Delay(DelayBetweenTask, token);
-
-                // Then perform mapping with FOSB-specific parameters
-                await MappingOperation_UpToDown(token, settings);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("FOSB load+mapping sequence completed successfully");
-                return true; // Return true on successful completion
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("FOSB load+mapping sequence was canceled");
-                m_status[3] = (char)Operation.Stopping;
-                return false; // Return false on cancellation
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during FOSB load+mapping sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false; // Return false on exception
-            }
-        }
-
-        /// <summary>
-        /// Executes the N2PURGE-specific load with mapping sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task representing the asynchronous operation</returns>
-        public async Task<bool> ExecuteN2PurgeLoadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            Debug.WriteLine("Executing N2PURGE-specific load+mapping sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // First perform N2PURGE-specific load
-                bool loadSuccess = ExecuteN2PurgeLoadSequence(token);
-                if (!loadSuccess)
-                {
-                    Debug.WriteLine("N2PURGE load+mapping: Load sequence failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Wait for load to complete
-                await Task.Delay(DelayBetweenTask, token);
-
-                // Then perform mapping with N2PURGE-specific parameters
-                await MappingOperation_UpToDown(token, settings);
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("N2PURGE load+mapping sequence completed successfully");
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("N2PURGE load+mapping sequence was canceled");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during N2PURGE load+mapping sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the Adaptor-specific unload with mapping sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task<bool> indicating success or failure of the operation</returns>
-        public async Task<bool> ExecuteAdaptorUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            Debug.WriteLine("Executing Adaptor-specific unload+mapping sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // First perform mapping
-                await MappingOperation_UpToDown(token, settings);
-
-                // Wait for mapping to complete
-                await Task.Delay(DelayBetweenTask, token);
-
-                // Then Adaptor-specific unload
-                bool unloadSuccess = ExecuteAdaptorUnloadSequence(token);
-                if (!unloadSuccess)
-                {
-                    Debug.WriteLine("Adaptor unload+mapping: Unload sequence failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("Adaptor unload+mapping sequence completed successfully");
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("Adaptor unload+mapping sequence was canceled");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during Adaptor unload+mapping sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the FOSB-specific unload with mapping sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task<bool> indicating success or failure of the operation</returns>
-        public async Task<bool> ExecuteFOSBUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            Debug.WriteLine("Executing FOSB-specific unload+mapping sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // First perform mapping
-                await MappingOperation_UpToDown(token, settings);
-
-                // Wait for mapping to complete
-                await Task.Delay(DelayBetweenTask, token);
-
-                // Then FOSB-specific unload
-                bool unloadSuccess = ExecuteFOSBUnloadSequence(token);
-                if (!unloadSuccess)
-                {
-                    Debug.WriteLine("FOSB unload+mapping: Unload sequence failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Set success status
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("FOSB unload+mapping sequence completed successfully");
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("FOSB unload+mapping sequence was canceled");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during FOSB unload+mapping sequence: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Executes the N2PURGE-specific unload with mapping sequence
-        /// </summary>
-        /// <param name="token">Cancellation token for async operations</param>
-        /// <param name="settings">Mapping settings to use</param>
-        /// <returns>Task<bool> indicating success or failure of the operation</returns>
-        public async Task<bool> ExecuteN2PurgeUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
-        {
-            if (IsErrorExist())
-            {
-                Debug.WriteLine("N2PURGE Unload+Mapping Error: Existing errors prevent operation");
-                return false;
-            }
-
-            // Log start of operation
-            Debug.WriteLine("Executing N2PURGE-specific unload+mapping sequence");
-
-            try
-            {
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // 1. First perform the mapping operation
-                Debug.WriteLine("Starting mapping operation for N2PURGE...");
-                await MappingOperation_UpToDown(token, settings);
-
-                // 2. Wait for system to stabilize after mapping
-                await Task.Delay(DelayBetweenTask, token);
-
-                // 3. Check pod presence using protrusion sensor
-                UpdateSensorStatus();
-                if (_sensorStatus.StatusProtrusion != 1)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: No POD detected (protrusion sensor)");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // 4. Check pod is clamped before unlatching
-                if (_sensorStatus.StatusClamp != 1)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Pod is not clamped");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // 5. Check current load status
-                if (m_status[2] != (char)LoadStatus.LoadPosition)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Not in Load Position");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // 6. N2PURGE specific: First turn off vacuum before other operations
-                Debug.WriteLine("N2PURGE: Turning off vacuum first...");
-                bool vacuumOffSuccess = VacuumOff(token);
-                if (!vacuumOffSuccess)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Failed to turn off vacuum");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                await Task.Delay(DelayBetweenTask, token);
-
-                // 7. Perform latch operation 
-                Debug.WriteLine("N2PURGE: Performing latch operation...");
-                bool latchSuccess = Latch(token);
-                if (!latchSuccess)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Latch operation failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                await Task.Delay(DelayBetweenTask, token);
-
-                // 8. Perform unclamp operation
-                Debug.WriteLine("N2PURGE: Performing unclamp operation...");
-                bool unclampSuccess = Unclamp(token);
-                if (!unclampSuccess)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Unclamp operation failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                await Task.Delay(DelayBetweenTask, token);
-
-                // 9. Retract dock
-                Debug.WriteLine("N2PURGE: Retracting dock...");
-                bool dockBackwardSuccess = DockBackward(token);
-                if (!dockBackwardSuccess)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Dock retraction failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-                await Task.Delay(DelayBetweenTask, token);
-
-                // 10. Close door
-                Debug.WriteLine("N2PURGE: Closing door...");
-                bool doorBackwardSuccess = DoorBackward(token);
-                if (!doorBackwardSuccess)
-                {
-                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Door closing failed");
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Operations complete - update status
-                Debug.WriteLine("N2PURGE unload with mapping sequence completed successfully");
-                m_status[3] = (char)Operation.Stopping;
-                m_status[2] = (char)LoadStatus.HomePosition;
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                Debug.WriteLine("N2PURGE Unload+Mapping: Operation was canceled");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Error during N2PURGE Unload+Mapping: {ex.Message}");
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Performs a mapping operation with real-time wafer slot analysis, calculating which slots have wafers
-        /// and their status AND exports raw mapping data. This function performs the same mechanical sequence 
-        /// as MappingOperation_UpToDown but analyzes data in real-time for monitor display and exports raw data.
-        /// </summary>
-        /// <param name="token">Cancellation token for the operation</param>
-        /// <param name="settings">Mapping settings containing start/end positions and other parameters</param>
-        /// <returns>MappingAnalysisResult containing calculated slot statuses and wafer information</returns>
         public async Task<FOUPCtrl.WaferMap.MappingAnalysisResult> MappingOperation_UpToDown_WithAnalysis(CancellationToken token, IMappingSettings settings)
         {
             // Initialize result with error status in case of early return
@@ -5623,96 +4620,2613 @@ namespace FoupControl
                 Debug.WriteLine("MappingOperation_UpToDown finished.");
             }
         }
-
-        // Add these methods to the FOUP_Ctrl class
-
         /// <summary>
-        /// Executes the origin command using dedicated origin steps sequence
+        /// Performs the Mapping Auto-Calibration sequence, calculating slot pitch
+        /// and slot 1 position based on detected wafers in the FOUP.
         /// </summary>
-        /// <param name="token">Cancellation token</param>
-        /// <returns>True if successful, false otherwise</returns>
-        public async Task<bool> ExecuteOriginCommand(CancellationToken token)
+        /// <param name="token">Cancellation token for async operations</param>
+        /// <param name="settings">Mapping settings that include start/end positions</param>
+        /// <param name="callbackAction">Optional action to call for status updates</param>
+        /// <returns>Tuple containing (success, avgPitch, slot1Pos, detectedWaferCount, avgThickness)</returns>
+        public async Task<(bool Success, double AvgPitch, double Slot1Pos, int WaferCount, double AvgThickness)>
+        MappingAutoCalibration(CancellationToken token, IMappingSettings settings, Action<string> callbackAction = null)
+        {
+            void Log(string message)
+            {
+                Debug.WriteLine(message);
+                callbackAction?.Invoke(message);
+            }
+
+            try
+            {
+                Log("--- Starting Mapping Auto Calibration Sequence ---");
+
+                // 1. Verify that settings are provided
+                if (settings == null)
+                {
+                    Log("Auto Calibration Error: No settings provided");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                // 2. Verify start and end positions are set properly
+                if (Math.Abs(settings.MapEndPositionMm) <= Math.Abs(settings.MapStartPositionMm))
+                {
+                    Log($"Auto Calibration Error: Invalid mapping range - Start: {settings.MapStartPositionMm}, End: {settings.MapEndPositionMm}");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                // 3. Initialize mapping data collection
+                _mappingData.Clear();
+                Log("Starting elevator movement for auto-calibration...");
+
+                // 4. Ensure appropriate starting position - Elevator should be at bottom position
+                UpdateSensorStatus();
+                if (_sensorStatus.StatusElevatorDown != 1)
+                {
+                    Log("Moving elevator to down position...");
+                    bool elevatorDownSuccess = await Task.Run(() => ElevatorDown(token));
+
+                    // Brief pause to ensure elevator is stable
+                    await Task.Delay(500, token);
+
+                    // Verify down position reached
+                    UpdateSensorStatus();
+                    if (_sensorStatus.StatusElevatorDown != 1)
+                    {
+                        Log("Auto Calibration Error: Could not move elevator to down position");
+                        return (false, 0, 0, 0, 0);
+                    }
+                }
+
+                // 5. Safety check for software limits
+                double softwareMin = -5;  // Minimum allowable position
+                double softwareMax = -1650; // Maximum allowable position (adjust as needed)
+
+                if (settings.MapStartPositionMm > softwareMin || settings.MapEndPositionMm < softwareMax)
+                {
+                    Log($"Auto Calibration Error: Positions exceed software limits - Start: {settings.MapStartPositionMm}, End: {settings.MapEndPositionMm}");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                if (settings.MapStartPositionMm > 0 || settings.MapEndPositionMm < -1650)
+                {
+                    Log($"Auto Calibration Error: Positions exceed software limits - Start: {settings.MapStartPositionMm}, End: {settings.MapEndPositionMm}");
+                    Log($"Valid range is from 0 to -1650");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                // 6. Start the actual mapping operation
+                Log($"Starting mapping scan from {settings.MapStartPositionMm}mm to {settings.MapEndPositionMm}mm");
+
+                // Use the existing MappingOperation_UpToDown_HighSpeed method for better data quality
+                await MappingOperation_UpToDown_HighSpeed(token, settings);
+
+                // 7. Process the collected data
+                Log("Processing mapping data...");
+                var mappingData = GetMappingData();
+
+                if (mappingData == null || mappingData.Count < 10)  // Arbitrary minimum data point threshold
+                {
+                    Log($"Auto Calibration Error: Not enough data points collected ({(mappingData?.Count ?? 0)})");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                // 8. Analyze the data to find wafers and calculate pitch
+                Log($"Analyzing {mappingData.Count} data points to find wafer edges");
+
+                // Find wafer edges in the collected data
+                List<(double startPos, double endPos)> waferEdges = FindWaferEdges(mappingData);
+
+                if (waferEdges.Count < 2)
+                {
+                    Log($"Auto Calibration Error: Not enough wafers detected ({waferEdges.Count})");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                // 9. Calculate wafer centers 
+                List<double> waferCenters = new List<double>();
+                foreach (var edge in waferEdges)
+                {
+                    double center = (edge.startPos + edge.endPos) / 2.0;
+                    waferCenters.Add(center);
+                }
+
+                // Sort by position for initial ordering
+                waferEdges = waferEdges.OrderBy(w => Math.Abs(w.startPos)).ToList();
+                Log($"Found {waferEdges.Count} wafers in the mapping data (sorted by position).");
+
+                // Recalculate wafer centers after sorting
+                waferCenters.Clear();
+                foreach (var edge in waferEdges)
+                {
+                    double center = (edge.startPos + edge.endPos) / 2.0;
+                    waferCenters.Add(center);
+                }
+
+                // Determine if we're in a negative coordinate system (similar to ProcessTrainingData)
+                bool isNegativeCoordinateSystem = waferCenters.Any() && waferCenters[0] < 0;
+                Log($"Detected coordinate system: {(isNegativeCoordinateSystem ? "Negative" : "Positive")}");
+
+                // For negative coordinate systems, the first slot is the one with highest value (closest to zero)
+                // For positive coordinate systems, the first slot is the one with lowest value
+                if (isNegativeCoordinateSystem)
+                {
+                    // Sort from highest to lowest (closest to zero first)
+                    waferCenters = waferCenters.OrderByDescending(c => c).ToList();
+                }
+                else
+                {
+                    // Sort from lowest to highest
+                    waferCenters = waferCenters.OrderBy(c => c).ToList();
+                }
+
+                double firstWaferCenterMm = waferCenters.First();
+                double lastWaferCenterMm = waferCenters.Last();
+
+                Log($"First wafer center: {firstWaferCenterMm:F3}mm");
+                Log($"Last wafer center: {lastWaferCenterMm:F3}mm");
+
+                // Get expected slot count from settings
+                int expectedSlots = 25; // Default to 25 if we can't get it from settings
+
+                // Try to get the slot count from MappingTable via IMappingSettings
+                try
+                {
+                    var settingsWithTables = settings as dynamic;
+                    if (settingsWithTables != null)
+                    {
+                        // Get MappingTableNo from settings if it's a MappingTypeProfile
+                        int mappingTableNo = 1;
+                        if (settings is MappingTypeProfile mappingProfile)
+                        {
+                            mappingTableNo = mappingProfile.MappingTableNo;
+                            Log($"Using mapping table number {mappingTableNo} from profile");
+                        }
+
+                        // Get the mapping table and read its SlotCount
+                        var mappingTable = settingsWithTables.GetMappingTableByNumber(mappingTableNo);
+                        if (mappingTable != null && mappingTable.SlotCount > 0)
+                        {
+                            expectedSlots = mappingTable.SlotCount;
+                            Log($"Using configured slot count from mapping table: {expectedSlots}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log($"Could not get slot count from settings: {ex.Message}");
+                    Log($"Using default slot count: {expectedSlots}");
+                }
+
+                // Calculate pitch - will be negative in negative coordinate system (same as ProcessTrainingData)
+                double distance = lastWaferCenterMm - firstWaferCenterMm;
+                int numberOfGaps = expectedSlots - 1;
+
+                if (numberOfGaps <= 0)
+                {
+                    Log($"Auto Calibration Error: Invalid expected slots count ({expectedSlots}). Must be > 1.");
+                    return (false, 0, 0, 0, 0);
+                }
+
+                // Calculate average pitch (maintains sign for negative coordinates)
+                double avgPitch = distance / numberOfGaps;
+
+                // First wafer center is our slot 1 position
+                double slot1Pos = firstWaferCenterMm;
+
+                Log($"Distance between first and last wafer: {distance:F3}mm");
+                Log($"Average pitch calculation: {distance:F3}mm ÷ {numberOfGaps} gaps = {avgPitch:F3}mm/slot");
+                Log($"Using first wafer center as slot 1 position: {slot1Pos:F3}mm");
+
+                // 10. Calculate wafer thickness for reference
+                double avgThickness = 0;
+                foreach (var edge in waferEdges)
+                {
+                    avgThickness += Math.Abs(edge.endPos - edge.startPos);
+                }
+                avgThickness /= waferEdges.Count;
+
+                // 11. Log the results
+                Log("Auto calibration completed successfully");
+                Log($"Detected average pitch: {avgPitch:F3} mm");
+                Log($"First slot position (slot 1): {slot1Pos:F3} mm");
+                Log($"Detected wafer count: {waferEdges.Count}");
+                Log($"Detected average thickness: {avgThickness:F3} mm");
+
+                // 12. Return the elevator to down position
+                Log("Returning elevator to down position...");
+                await Task.Run(() => ElevatorDown(token));
+
+                // 13. Return calibration results
+                Log("--- Mapping Auto Calibration Complete ---");
+
+                return (true, avgPitch, slot1Pos, waferEdges.Count, avgThickness);
+            }
+            catch (OperationCanceledException)
+            {
+                Log("Mapping auto-calibration was cancelled");
+                return (false, 0, 0, 0, 0);
+            }
+            catch (Exception ex)
+            {
+                Log($"Auto Calibration Error: {ex.Message}");
+                return (false, 0, 0, 0, 0);
+            }
+        }
+        private List<(double startPos, double endPos)> FindWaferEdges(List<FOUP_Ctrl.DataPoint> data)
+        {
+            List<(double startPos, double endPos)> edges = new List<(double startPos, double endPos)>();
+            double? currentStart = null;
+
+            for (int i = 1; i < data.Count; i++)
+            {
+                // Rising edge (start of wafer detection)
+                if (data[i - 1].SensorValue == 0 && data[i].SensorValue == 1)
+                {
+                    currentStart = data[i].Position;
+                }
+                // Falling edge (end of wafer detection)
+                else if (data[i - 1].SensorValue == 1 && data[i].SensorValue == 0 && currentStart.HasValue)
+                {
+                    edges.Add((currentStart.Value, data[i - 1].Position));
+                    currentStart = null;
+                }
+            }
+
+            // If we have a start without an end (e.g., scan ended while on a wafer)
+            if (currentStart.HasValue && data.Count > 0)
+            {
+                // Use the last position as the end
+                edges.Add((currentStart.Value, data[data.Count - 1].Position));
+            }
+
+            return edges;
+        }
+        public bool ExportMappingDataRaw(string savePath)
         {
             try
             {
-                // Clear any previous error messages at the start
-                _errorMessage = string.Empty;
-
-                Debug.WriteLine("Executing origin command using dedicated origin steps sequence...");
-
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Get the dedicated origin steps
-                var originSteps = GetOriginSteps();
-
-                // Execute each step in the sequence
-                foreach (var step in originSteps)
+                if (_mappingData == null || _mappingData.Count == 0)
                 {
-                    if (step.IsRequired)
-                    {
-                        Debug.WriteLine($"Executing origin step: {step.Name}");
-
-                        bool success = step.Operation(token);
-                        if (!success)
-                        {
-                            // Use a local error message to avoid contaminating global state
-                            string localErrorMessage = $"Origin operation failed at step: {step.Name}";
-                            Debug.WriteLine(localErrorMessage);
-                            m_status[3] = (char)Operation.Stopping;
-
-                            // Only set global error if it's currently empty
-                            if (string.IsNullOrEmpty(_errorMessage))
-                {
-                                _errorMessage = localErrorMessage;
-                            }
-
+                    _errorMessage = "No mapping data available to export";
                     return false;
                 }
 
-                        // Add delay between steps
-                        await Task.Delay(DelayBetweenTask, token);
-                    }
-                }
+                // Create directory if needed
+                if (!Directory.Exists(savePath))
+                    Directory.CreateDirectory(savePath);
 
-                // Clear error message on successful completion
-                _errorMessage = string.Empty;
+                // Create filename with timestamp
+                string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                string csvPath = Path.Combine(savePath, $"MappingData_{timestamp}.csv");
 
-                // After executing the origin steps, set absolute position to 0
-                Debug.WriteLine("Setting absolute position to 0 for origin...");
-                if (_credenAxisCard != null)
+                // Use high-performance StreamWriter with large buffer
+                using (StreamWriter writer = new StreamWriter(csvPath, false, System.Text.Encoding.UTF8, 65536))
                 {
-                    var status = _credenAxisCard.SetAbsPosition(3, 0);
-                    if (status != CardStatus.Successful)
+                    // Write simple header
+                    writer.WriteLine("Time (ms),Position (mm),Sensor Value");
+
+                    // Write data with minimal formatting
+                    foreach (var point in _mappingData)
                     {
-                        _errorMessage = $"Failed to set position to 0 during origin: {status}";
-                        Debug.WriteLine(_errorMessage);
-                        m_status[3] = (char)Operation.Stopping;
-                        return false;
+                        // Only write essential columns, avoid string formatting where possible
+                        writer.Write(point.TimeMs);
+                        writer.Write(',');
+                        writer.Write(point.Position.ToString("F2"));
+                        writer.Write(',');
+                        writer.WriteLine(point.SensorValue);
                     }
                 }
 
-                // Update status to indicate successful origin operation
-                m_status[3] = (char)Operation.Stopping;
-                Debug.WriteLine("Origin command executed successfully using dedicated origin steps sequence.");
+                Debug.WriteLine($"Successfully exported {_mappingData.Count} data points to: {csvPath}");
                 return true;
             }
             catch (Exception ex)
             {
-                _errorMessage = $"Error during origin operation: {ex.Message}";
-                Debug.WriteLine($"Error during origin operation: {ex.Message}");
+                _errorMessage = $"Error exporting data: {ex.Message}";
+                Debug.WriteLine($"Error exporting data: {ex.Message}");
+                return false;
+            }
+        }
+        public List<DataPoint> GetMappingData()
+        {
+            return _mappingData;
+        }
+        public string GetMappingResultString(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
+        {
+            if (analysisResult?.WaferStatus == null)
+            {
+                Debug.WriteLine("GetMappingResultString: Analysis result or wafer status is null");
+                return "".PadLeft(25, '9'); // Return error status for all slots
+            }
+
+            var result = new System.Text.StringBuilder();
+
+            for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
+            {
+                // Convert wafer status to single character using traditional switch statement
+                // 0 = Empty, 1 = Normal, 2 = Crossed, 3 = Thick, 4 = Thin, 5 = Position Error, 99 = Error
+                char statusChar;
+                switch (analysisResult.WaferStatus[i])
+                {
+                    case 0:
+                        statusChar = '0';  // Empty
+                        break;
+                    case 1:
+                        statusChar = '1';  // Normal
+                        break;
+                    case 2:
+                        statusChar = '2';  // Crossed
+                        break;
+                    case 3:
+                        statusChar = '3';  // Thick
+                        break;
+                    case 4:
+                        statusChar = '4';  // Thin
+                        break;
+                    case 5:
+                        statusChar = '5';  // Position Error
+                        break;
+                    case 99:
+                        statusChar = '9';  // Error
+                        break;
+                    default:
+                        statusChar = '9';  // Unknown - treat as error
+                        break;
+                }
+
+                result.Append(statusChar);
+            }
+
+            string mappingResult = result.ToString();
+            Debug.WriteLine($"Mapping result: {mappingResult}");
+            Debug.WriteLine($"GetMappingResult returning: '{mappingResult}' (Length: {mappingResult.Length})");
+
+            return mappingResult;
+        }
+        #endregion
+
+        #region Sequence Operations
+        public void Lock(CancellationToken token)
+        {
+            if (IsErrorExist())
+            {
+                return;
+            }
+
+            bool bMotionDone = false;
+
+            m_status[3] = (char)Operation.Operating;
+            bMotionDone = Clamp(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                return;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            bMotionDone = Unlatch(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                return;
+            }
+
+            m_status[3] = (char)Operation.Stopping;
+        }
+        public void Unlock(CancellationToken token)
+        {
+            if (IsErrorExist())
+            {
+                return;
+            }
+
+            bool bMotionDone = false;
+
+            m_status[3] = (char)Operation.Operating;
+            bMotionDone = Latch(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                return;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            bMotionDone = Unclamp(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                return;
+            }
+
+            m_status[3] = (char)Operation.Stopping;
+        }
+        public bool ExecuteFOUPLoadSequence(CancellationToken token)
+        {
+            if (IsErrorExist())
+            {
+                return false;
+            }
+
+            bool bMotionDone = false;
+
+            m_status[3] = (char)Operation.Operating;
+
+            // Step 1: Clamp
+            Debug.WriteLine("Executing clamp operation...");
+            bMotionDone = Clamp(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Clamp operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 2: Dock Forward
+            Debug.WriteLine("Executing dock forward operation...");
+            bMotionDone = DockForward(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Dock forward operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 3: Latch
+            Debug.WriteLine("Executing latch operation...");
+            bMotionDone = Latch(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Latch operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 4: Vacuum On
+            Debug.WriteLine("Executing vacuum on operation...");
+            bMotionDone = VacuumOn(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Vacuum on operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 5: Door Forward (Open)
+            Debug.WriteLine("Executing door open operation...");
+            bMotionDone = DoorForward(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Door forward operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 6: Elevator Down
+            Debug.WriteLine("Executing elevator down operation...");
+            bMotionDone = ElevatorDown(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Elevator down operation failed");
+                return false;
+            }
+
+            m_status[2] = (char)LoadStatus.LoadPosition;
+            m_status[3] = (char)Operation.Stopping;
+            Debug.WriteLine("FOUP load sequence completed successfully");
+            return true;
+        }
+        public bool ExecuteFOUPUnloadSequence(CancellationToken token)
+        {
+            if (IsErrorExist())
+            {
+                return false;
+            }
+
+            bool bMotionDone = false;
+
+            m_status[3] = (char)Operation.Operating;
+
+            // Step 1: Elevator Up
+            Debug.WriteLine("Executing elevator up operation...");
+            bMotionDone = ElevatorUp(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Elevator up operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 2: Door Backward (Close)
+            Debug.WriteLine("Executing door close operation...");
+            bMotionDone = DoorBackward(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Door close operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 3: Unlatch
+            Debug.WriteLine("Executing unlatch operation...");
+            bMotionDone = Unlatch(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Unlatch operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 4: Vacuum Off
+            Debug.WriteLine("Executing vacuum off operation...");
+            bMotionDone = VacuumOff(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Vacuum off operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 5: Dock Backward (Retract)
+            Debug.WriteLine("Executing dock backward operation...");
+            bMotionDone = DockBackward(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Dock backward operation failed");
+                return false;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 6: Unclamp
+            Debug.WriteLine("Executing unclamp operation...");
+            bMotionDone = Unclamp(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Unclamp operation failed");
+                return false;
+            }
+
+            m_status[2] = (char)LoadStatus.HomePosition;
+            m_status[3] = (char)Operation.Stopping;
+            Debug.WriteLine("FOUP unload sequence completed successfully");
+            return true;
+        }
+        public async Task<bool> ExecuteFOUPLoadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            Debug.WriteLine("Executing FOUP-specific load+mapping sequence");
+
+            if (IsErrorExist())
+            {
+                Debug.WriteLine("Cannot execute operation due to existing errors");
+                return false;
+            }
+
+            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
+            {
+                _errorMessage = "Not all cards are connected.";
+                Debug.WriteLine("Error: Not all cards are connected");
+                return false;
+            }
+
+            // Validate settings early
+            if (settings == null)
+            {
+                _errorMessage = "Settings object (IMappingSettings) is null.";
+                Debug.WriteLine("Error: Settings object is null");
+                return false;
+            }
+
+            double mmPerPulse = settings.MmPerPulse;
+            if (mmPerPulse <= 0)
+            {
+                _errorMessage = "Invalid MmPerPulse setting (must be > 0).";
+                Debug.WriteLine($"Error: Invalid MmPerPulse setting: {mmPerPulse}");
+                return false;
+            }
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // PHASE 1: INDIVIDUAL FOUP LOAD OPERATIONS
+                Debug.WriteLine("Executing FOUP load operations...");
+
+                // Step 1: Clamp
+                Debug.WriteLine("Executing clamp operation...");
+                bool bMotionDone = Clamp(token);
+                if (!bMotionDone)
+                {
+                    m_status[3] = (char)Operation.Stopping;
+                    Debug.WriteLine("Clamp operation failed");
+                    return false;
+                }
+                await Task.Delay(DelayBetweenTask, token);
+
+                // Step 2: Dock Forward
+                Debug.WriteLine("Executing dock forward operation...");
+                bMotionDone = DockForward(token);
+                if (!bMotionDone)
+                {
+                    m_status[3] = (char)Operation.Stopping;
+                    Debug.WriteLine("Dock forward operation failed");
+                    return false;
+                }
+                await Task.Delay(DelayBetweenTask, token);
+
+                //// Step 3: Latch
+                //Debug.WriteLine("Executing latch operation...");
+                //bMotionDone = Latch(token);
+                //if (!bMotionDone)
+                //{
+                //    m_status[3] = (char)Operation.Stopping;
+                //    Debug.WriteLine("Latch operation failed");
+                //    return false;
+                //}
+                //await Task.Delay(DelayBetweenTask, token);
+
+                //// Step 4: Vacuum On (Uncommented - usually required for FOUP operations)
+                //Debug.WriteLine("Executing vacuum on operation...");
+                //bMotionDone = VacuumOn(token);
+                //if (!bMotionDone)
+                //{
+                //    m_status[3] = (char)Operation.Stopping;
+                //    Debug.WriteLine("Vacuum on operation failed");
+                //    return false;
+                //}
+                //await Task.Delay(DelayBetweenTask, token);
+
+                //// Step 5: Door Forward (Open) (Uncommented - usually required to access wafers)
+                //Debug.WriteLine("Executing door open operation...");
+                //bMotionDone = DoorForward(token);
+                //if (!bMotionDone)
+                //{
+                //    m_status[3] = (char)Operation.Stopping;
+                //    Debug.WriteLine("Door forward operation failed");
+                //    return false;
+                //}
+                //await Task.Delay(DelayBetweenTask, token);
+
+                // PHASE 2: PERFORM MAPPING OPERATION WITH ANALYSIS
+                Debug.WriteLine("Starting mapping operation with analysis...");
+                var analysisResult = await MappingOperation_UpToDown_WithAnalysis(token, settings);
+
+                // Check if analysis was successful
+                bool analysisSuccessful = true;
+                for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
+                {
+                    if (analysisResult.WaferStatus[i] == 99) // Check if any slot has error status
+                    {
+                        analysisSuccessful = false;
+                        break;
+                    }
+                }
+
+                if (!analysisSuccessful)
+                {
+                    _errorMessage = "Mapping analysis failed - error status detected";
+                    Debug.WriteLine("Mapping analysis failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Log analysis results
+                Debug.WriteLine($"Mapping analysis completed: {analysisResult.DetectedWaferCount} wafers detected");
+                for (int i = 0; i < Math.Min(analysisResult.ExpectedSlots, 5); i++) // Log first 5 slots as example
+                {
+                    string statusText = GetSlotStatusText(analysisResult.WaferStatus[i]);
+                    Debug.WriteLine($"Slot {i + 1}: {statusText}, Thickness: {analysisResult.WaferThicknessMm[i]:F3}mm");
+                }
+
+                // Update status to indicate successful load and mapping
+                m_status[2] = (char)LoadStatus.LoadPosition;
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("FOUP load+mapping sequence completed successfully");
+
+                // Store the analysis result so it can be accessed by the UI
+                _lastMappingAnalysisResult = analysisResult;
+
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("FOUP load+mapping sequence was canceled");
+                await SafelyDisableAllOutputs();
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Error during FOUP load+mapping: {ex.Message}";
+                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
+                await SafelyDisableAllOutputs();
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return false;
+            }
+        }
+        public async Task<bool> ExecuteFOUPUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            if (IsErrorExist())
+            {
+                return false;
+            }
+
+            UpdateSensorStatus();
+
+            //// Check for pod presence using protrusion sensor
+            //if (_sensorStatus.StatusProtrusion != 1)
+            //{
+            //    _errorMessage = "No POD detected.";
+            //    sStatusCode = FOUPInfo.InterlockExist;
+            //    sInterlockCode = Interlock.NotUnlatched;
+            //    Debug.WriteLine("Error: No POD detected (protrusion sensor)");
+            //    return false;
+            //}
+
+            //// Check unlatch status
+            //if (_sensorStatus.StatusUnlatch != 1)
+            //{
+            //    _errorMessage = "Pod is not unlatched.";
+            //    sStatusCode = FOUPInfo.InterlockExist;
+            //    sInterlockCode = Interlock.NotUnlatched;
+            //    Debug.WriteLine("Error: Pod is not unlatched");
+            //    return false;
+            //}
+
+            //// Check for clamping status
+            //if (_sensorStatus.StatusClamp != 1)
+            //{
+            //    _errorMessage = "Pod is not clamped.";
+            //    sStatusCode = FOUPInfo.InterlockExist;
+            //    sInterlockCode = Interlock.NotUnlatched;
+            //    Debug.WriteLine("Error: Pod is not clamped");
+            //    return false;
+            //}
+
+            //// Check current load status
+            //if (m_status[2] != (char)LoadStatus.LoadPosition)
+            //{
+            //    sStatusCode = FOUPInfo.InterlockExist;
+            //    sInterlockCode = Interlock.NotUnlatched;
+            //    _errorMessage = "Not in Load Position";
+            //    Debug.WriteLine("Error: Not in Load Position");
+            //    return false;
+            //}
+
+            bool bMotionDone = false;
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Execute the mapping operation - CHANGED to use DownToUp instead of UpToDown
+                Debug.WriteLine("Starting mapping operation sequence using bottom-to-top scanning");
+                await MappingOperation_DownToUp(token, settings);  // Changed to DownToUp
+
+                // Give system time to stabilize after mapping
+                await Task.Delay(DelayBetweenTask * 2, token);
+
+                // Continue with latch operation
+                //Debug.WriteLine("Starting latch operation");
+                //bMotionDone = Latch(token);
+                //if (!bMotionDone)
+                //{
+                //    m_status[3] = (char)Operation.Stopping;
+                //    _errorMessage = "Latch operation failed";
+                //    Debug.WriteLine("Error: Latch operation failed");
+                //    return false;
+                //}
+
+                //await Task.Delay(DelayBetweenTask, token);
+
+                // Unclamp operation
+                Debug.WriteLine("Starting unclamp operation");
+                bMotionDone = Unclamp(token);
+                if (!bMotionDone)
+                {
+                    m_status[3] = (char)Operation.Stopping;
+                    _errorMessage = "Unclamp operation failed";
+                    Debug.WriteLine("Error: Unclamp operation failed");
+                    return false;
+                }
+
+                // Operations complete - update status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = (char)LoadStatus.HomePosition;
+                Debug.WriteLine("UnloadingMapping operation completed successfully (using bottom-to-top scanning)");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                _errorMessage = "Operation was canceled";
+                Debug.WriteLine("Operation was canceled");
+                return false;
+            }
+            catch (Exception ex)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                _errorMessage = $"Error during UnloadingMapping: {ex.Message}";
+                Debug.WriteLine($"Error during UnloadingMapping: {ex.Message}");
+                return false;
+            }
+        }
+        public void Mapping(CancellationToken token)
+        {
+            if (IsErrorExist())
+            {
+                return;
+            }
+
+            bool bMotionDone = false;
+
+            m_status[3] = (char)Operation.Operating;
+            m_status[17] = (char)MappingStatus.InProcess;
+
+            // Step 1: Extend the mapping arms
+            bMotionDone = MappingBackward(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 2: Move elevator down to map
+            bMotionDone = ElevatorDown(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return;
+            }
+            Thread.Sleep(DelayBetweenTask);
+
+            // Step 3: Retract the mapping arms
+            bMotionDone = MappingForward(token);
+            if (!bMotionDone)
+            {
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return;
+            }
+
+            m_status[3] = (char)Operation.Stopping;
+            m_status[17] = (char)MappingStatus.Completed;
+        }
+        #endregion
+
+        #region Type-Specific Sequence Operations
+        public bool ExecuteAdaptorLoadSequence(CancellationToken token)
+        {
+            Debug.WriteLine("Executing Adaptor-specific load sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Example custom sequence for Adaptor type
+                bool success = DoorForward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Load: Door forward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                // Additional step for Adaptor type
+                success = VacuumOn(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Load: Vacuum on failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DockForward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Load: Dock forward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Clamp(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Load: Clamp failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Unlatch(token);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = success ? (char)LoadStatus.LoadPosition : m_status[2];
+
+                Debug.WriteLine("Adaptor Load: " + (success ? "Completed successfully" : "Failed at unlatch step"));
+                return success;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during Adaptor Load sequence: {ex.Message}");
                 m_status[3] = (char)Operation.Stopping;
                 return false;
             }
         }
+        public bool ExecuteAdaptorUnloadSequence(CancellationToken token)
+        {
+            Debug.WriteLine("Executing Adaptor-specific unload sequence");
 
-        /// <summary>
-        /// Polls the IO status for the specified card and populates the provided collections
-        /// </summary>
-        /// <param name="selectedCardIndex">0 for Card 1, 1 for Card 2</param>
-        /// <param name="inputBits">Collection to populate with input bit statuses</param>
-        /// <param name="outputBits">Collection to populate with output bit statuses</param>
-        /// <returns>True if successful, false otherwise</returns>
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Custom unload sequence for Adaptor type
+                bool success = Latch(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Unload: Latch failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Unclamp(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Unload: Unclamp failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DockBackward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Unload: Dock backward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                // Extra step for Adaptor
+                success = VacuumOff(token);
+                if (!success)
+                {
+                    Debug.WriteLine("Adaptor Unload: Vacuum off failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DoorBackward(token);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = success ? (char)LoadStatus.HomePosition : m_status[2];
+
+                Debug.WriteLine("Adaptor Unload: " + (success ? "Completed successfully" : "Failed at door backward step"));
+                return success;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during Adaptor Unload sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public async Task<bool> ExecuteAdaptorLoadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            Debug.WriteLine("Executing Adaptor-specific load+mapping sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // First perform Adaptor-specific load
+                bool loadSuccess = ExecuteAdaptorLoadSequence(token);
+                if (!loadSuccess)
+                {
+                    Debug.WriteLine("Adaptor load+mapping: Load sequence failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false; // Return false on failure
+                }
+
+                // Wait for load to complete
+                await Task.Delay(DelayBetweenTask, token);
+
+                // Then perform mapping with Adaptor-specific parameters
+                await MappingOperation_UpToDown(token, settings);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("Adaptor load+mapping sequence completed successfully");
+                return true; // Return true on success
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Adaptor load+mapping sequence was canceled");
+                m_status[3] = (char)Operation.Stopping;
+                return false; // Return false on cancellation
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during Adaptor load+mapping sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false; // Return false on exception
+            }
+        }
+        public async Task<bool> ExecuteAdaptorUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            Debug.WriteLine("Executing Adaptor-specific unload+mapping sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // First perform mapping
+                await MappingOperation_UpToDown(token, settings);
+
+                // Wait for mapping to complete
+                await Task.Delay(DelayBetweenTask, token);
+
+                // Then Adaptor-specific unload
+                bool unloadSuccess = ExecuteAdaptorUnloadSequence(token);
+                if (!unloadSuccess)
+                {
+                    Debug.WriteLine("Adaptor unload+mapping: Unload sequence failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("Adaptor unload+mapping sequence completed successfully");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Adaptor unload+mapping sequence was canceled");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during Adaptor unload+mapping sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public bool ExecuteFOSBLoadSequence(CancellationToken token)
+        {
+            Debug.WriteLine("Executing FOSB-specific load sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Example custom sequence for FOSB type
+                bool success = DoorForward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("FOSB Load: Door forward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                // FOSB might have a different step order
+                success = Clamp(token);
+                if (!success)
+                {
+                    Debug.WriteLine("FOSB Load: Clamp failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DockForward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("FOSB Load: Dock forward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Unlatch(token);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = success ? (char)LoadStatus.LoadPosition : m_status[2];
+
+                Debug.WriteLine("FOSB Load: " + (success ? "Completed successfully" : "Failed at unlatch step"));
+                return success;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during FOSB Load sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public bool ExecuteFOSBUnloadSequence(CancellationToken token)
+        {
+            Debug.WriteLine("Executing FOSB-specific unload sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Custom unload sequence for FOSB type
+                bool success = Latch(token);
+                if (!success)
+                {
+                    Debug.WriteLine("FOSB Unload: Latch failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Unclamp(token);
+                if (!success)
+                {
+                    Debug.WriteLine("FOSB Unload: Unclamp failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DockBackward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("FOSB Unload: Dock backward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DoorBackward(token);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = success ? (char)LoadStatus.HomePosition : m_status[2];
+
+                Debug.WriteLine("FOSB Unload: " + (success ? "Completed successfully" : "Failed at door backward step"));
+                return success;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during FOSB Unload sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public async Task<bool> ExecuteFOSBLoadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            Debug.WriteLine("Executing FOSB-specific load+mapping sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // First perform FOSB-specific load
+                bool loadSuccess = ExecuteFOSBLoadSequence(token);
+                if (!loadSuccess)
+                {
+                    Debug.WriteLine("FOSB load+mapping: Load sequence failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Wait for load to complete
+                await Task.Delay(DelayBetweenTask, token);
+
+                // Then perform mapping with FOSB-specific parameters
+                await MappingOperation_UpToDown(token, settings);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("FOSB load+mapping sequence completed successfully");
+                return true; // Return true on successful completion
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("FOSB load+mapping sequence was canceled");
+                m_status[3] = (char)Operation.Stopping;
+                return false; // Return false on cancellation
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during FOSB load+mapping sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false; // Return false on exception
+            }
+        }
+        public async Task<bool> ExecuteFOSBUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            Debug.WriteLine("Executing FOSB-specific unload+mapping sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // First perform mapping
+                await MappingOperation_UpToDown(token, settings);
+
+                // Wait for mapping to complete
+                await Task.Delay(DelayBetweenTask, token);
+
+                // Then FOSB-specific unload
+                bool unloadSuccess = ExecuteFOSBUnloadSequence(token);
+                if (!unloadSuccess)
+                {
+                    Debug.WriteLine("FOSB unload+mapping: Unload sequence failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("FOSB unload+mapping sequence completed successfully");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("FOSB unload+mapping sequence was canceled");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during FOSB unload+mapping sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public bool ExecuteN2PurgeLoadSequence(CancellationToken token)
+        {
+            Debug.WriteLine("Executing N2PURGE-specific load sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // Example custom sequence for N2PURGE type
+                bool success = DoorForward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Load: Door forward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DockForward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Load: Dock forward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                // N2PURGE needs vacuum before clamping
+                success = VacuumOn(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Load: Vacuum on failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Clamp(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Load: Clamp failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Unlatch(token);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = success ? (char)LoadStatus.LoadPosition : m_status[2];
+
+                Debug.WriteLine("N2PURGE Load: " + (success ? "Completed successfully" : "Failed at unlatch step"));
+                return success;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during N2PURGE Load sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public bool ExecuteN2PurgeUnloadSequence(CancellationToken token)
+        {
+            Debug.WriteLine("Executing N2PURGE-specific unload sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // First turn off vacuum for N2PURGE
+                bool success = VacuumOff(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Unload: Vacuum off failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Latch(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Unload: Latch failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = Unclamp(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Unload: Unclamp failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DockBackward(token);
+                if (!success)
+                {
+                    Debug.WriteLine("N2PURGE Unload: Dock backward failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                Thread.Sleep(DelayBetweenTask);
+
+                success = DoorBackward(token);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = success ? (char)LoadStatus.HomePosition : m_status[2];
+
+                Debug.WriteLine("N2PURGE Unload: " + (success ? "Completed successfully" : "Failed at door backward step"));
+                return success;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during N2PURGE Unload sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public async Task<bool> ExecuteN2PurgeLoadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            Debug.WriteLine("Executing N2PURGE-specific load+mapping sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // First perform N2PURGE-specific load
+                bool loadSuccess = ExecuteN2PurgeLoadSequence(token);
+                if (!loadSuccess)
+                {
+                    Debug.WriteLine("N2PURGE load+mapping: Load sequence failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Wait for load to complete
+                await Task.Delay(DelayBetweenTask, token);
+
+                // Then perform mapping with N2PURGE-specific parameters
+                await MappingOperation_UpToDown(token, settings);
+
+                // Set success status
+                m_status[3] = (char)Operation.Stopping;
+
+                Debug.WriteLine("N2PURGE load+mapping sequence completed successfully");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("N2PURGE load+mapping sequence was canceled");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during N2PURGE load+mapping sequence: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        public async Task<bool> ExecuteN2PurgeUnloadMappingSequence(CancellationToken token, IMappingSettings settings)
+        {
+            if (IsErrorExist())
+            {
+                Debug.WriteLine("N2PURGE Unload+Mapping Error: Existing errors prevent operation");
+                return false;
+            }
+
+            // Log start of operation
+            Debug.WriteLine("Executing N2PURGE-specific unload+mapping sequence");
+
+            try
+            {
+                // Set operation status
+                m_status[3] = (char)Operation.Operating;
+
+                // 1. First perform the mapping operation
+                Debug.WriteLine("Starting mapping operation for N2PURGE...");
+                await MappingOperation_UpToDown(token, settings);
+
+                // 2. Wait for system to stabilize after mapping
+                await Task.Delay(DelayBetweenTask, token);
+
+                // 3. Check pod presence using protrusion sensor
+                UpdateSensorStatus();
+                if (_sensorStatus.StatusProtrusion != 1)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: No POD detected (protrusion sensor)");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // 4. Check pod is clamped before unlatching
+                if (_sensorStatus.StatusClamp != 1)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Pod is not clamped");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // 5. Check current load status
+                if (m_status[2] != (char)LoadStatus.LoadPosition)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Not in Load Position");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // 6. N2PURGE specific: First turn off vacuum before other operations
+                Debug.WriteLine("N2PURGE: Turning off vacuum first...");
+                bool vacuumOffSuccess = VacuumOff(token);
+                if (!vacuumOffSuccess)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Failed to turn off vacuum");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                await Task.Delay(DelayBetweenTask, token);
+
+                // 7. Perform latch operation 
+                Debug.WriteLine("N2PURGE: Performing latch operation...");
+                bool latchSuccess = Latch(token);
+                if (!latchSuccess)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Latch operation failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                await Task.Delay(DelayBetweenTask, token);
+
+                // 8. Perform unclamp operation
+                Debug.WriteLine("N2PURGE: Performing unclamp operation...");
+                bool unclampSuccess = Unclamp(token);
+                if (!unclampSuccess)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Unclamp operation failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                await Task.Delay(DelayBetweenTask, token);
+
+                // 9. Retract dock
+                Debug.WriteLine("N2PURGE: Retracting dock...");
+                bool dockBackwardSuccess = DockBackward(token);
+                if (!dockBackwardSuccess)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Dock retraction failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+                await Task.Delay(DelayBetweenTask, token);
+
+                // 10. Close door
+                Debug.WriteLine("N2PURGE: Closing door...");
+                bool doorBackwardSuccess = DoorBackward(token);
+                if (!doorBackwardSuccess)
+                {
+                    Debug.WriteLine("N2PURGE Unload+Mapping Error: Door closing failed");
+                    m_status[3] = (char)Operation.Stopping;
+                    return false;
+                }
+
+                // Operations complete - update status
+                Debug.WriteLine("N2PURGE unload with mapping sequence completed successfully");
+                m_status[3] = (char)Operation.Stopping;
+                m_status[2] = (char)LoadStatus.HomePosition;
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("N2PURGE Unload+Mapping: Operation was canceled");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during N2PURGE Unload+Mapping: {ex.Message}");
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+        }
+        #endregion
+
+        #region Unified Sequence Operations
+        public async Task<bool> ExecuteUnifiedLoadMappingSequence(
+            CancellationToken token,
+            IMappingSettings settings,
+            SequenceType sequenceType,
+            OperationType operationType = OperationType.Load,
+            IProgress<string> progress = null)
+        {
+            progress?.Report($"Starting {sequenceType} {operationType} sequence");
+
+            if (!CanExecuteOperation($"{sequenceType} {operationType} Sequence"))
+            {
+                return false;
+            }
+
+            // **NEW: Check if already at load position**
+            UpdateSensorStatus();
+            char currentLoadStatus = m_status[2];
+
+            if (currentLoadStatus == (char)LoadStatus.LoadPosition)
+            {
+                Debug.WriteLine("System is already at Load Position");
+                _errorMessage = "System is already at Load Position. No action needed.";
+
+                // Show acknowledgment to user via UI thread
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    MessageBox.Show(
+                        "The system is already at Load Position.\n\nNo loading sequence is required.",
+                        "Already at Load Position",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Information
+                    );
+                });
+
+                return true; // Return success since we're already at the desired position
+            }
+
+            // **NEW: Create a linked cancellation token that can be cancelled by sensor monitoring**
+            _sequenceCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var linkedToken = _sequenceCancellationTokenSource.Token;
+
+            // Stop any existing monitoring
+            StopContinuousDoorRetentionMonitoring();
+
+            if (!ValidateSystemReady())
+            {
+                return false;
+            }
+
+            try
+            {
+                m_status[3] = (char)Operation.Operating;
+
+                // Get and execute sequence steps
+                var sequenceSteps = GetSequenceSteps(sequenceType, operationType);
+
+                foreach (var step in sequenceSteps)
+                {
+                    if (step.IsRequired)
+                    {
+                        // **CRITICAL CHECK: Stop if sensor monitoring cancelled the sequence**
+                        linkedToken.ThrowIfCancellationRequested();
+
+                        progress?.Report($"Executing {step.Name}...");
+
+                        if (!ValidateSystemReady(step.Name))
+                        {
+                            m_status[3] = (char)Operation.Stopping;
+                            return false;
+                        }
+
+                        // **USE LINKED TOKEN: This will be cancelled if sensor monitoring detects an error**
+                        bool success = step.Operation(linkedToken);
+                        if (!success)
+                        {
+                            m_status[3] = (char)Operation.Stopping;
+                            return false;
+                        }
+
+                        // **CRITICAL CHECK: Check again after each operation**
+                        linkedToken.ThrowIfCancellationRequested();
+
+                        //if (step.Name != "Door Retention Monitor")
+                        //{
+                        //    await Task.Delay(DelayBetweenTask, linkedToken);
+                        //}
+                    }
+                }
+
+                // Continue with mapping if needed...
+                if (operationType == OperationType.Load)
+                {
+                    linkedToken.ThrowIfCancellationRequested();
+
+                    if (!ValidateSystemReady("Mapping"))
+                    {
+                        m_status[3] = (char)Operation.Stopping;
+                        return false;
+                    }
+
+                    progress?.Report("Performing mapping analysis...");
+                    var analysisResult = await MappingOperation_UpToDown_WithAnalysis(linkedToken, settings);
+
+                    if (!ValidateAnalysisResult(analysisResult))
+                    {
+                        m_status[3] = (char)Operation.Stopping;
+                        return false;
+                    }
+
+                    LogAnalysisResults(analysisResult);
+                    _lastMappingAnalysisResult = analysisResult;
+                }
+
+                // **NEW: Update status to Load Position after successful completion**
+                m_status[2] = (char)LoadStatus.LoadPosition;
+                m_status[3] = (char)Operation.Stopping;
+                Debug.WriteLine("Unified Load Mapping sequence completed successfully - Status updated to Load Position");
+
+                // Update sensor status to reflect the new state
+                UpdateSensorStatus();
+
+                progress?.Report($"{sequenceType} {operationType} sequence completed successfully");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Sequence was cancelled - likely due to sensor error");
+                await SafelyDisableAllOutputs();
+                StopContinuousDoorRetentionMonitoring();
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Error during {sequenceType} {operationType}: {ex.Message}";
+                await SafelyDisableAllOutputs();
+                StopContinuousDoorRetentionMonitoring();
+                m_status[3] = (char)Operation.Stopping;
+                return false;
+            }
+            finally
+            {
+                // Clean up the cancellation token source
+                _sequenceCancellationTokenSource?.Dispose();
+                _sequenceCancellationTokenSource = null;
+            }
+        }
+        public async Task<bool> ExecuteUnifiedUnloadMappingSequence(
+            CancellationToken token,
+            IMappingSettings settings,
+            SequenceType sequenceType,
+            OperationType operationType = OperationType.Unload,
+            IProgress<string> progress = null)
+        {
+            progress?.Report($"Starting {sequenceType} {operationType} sequence (with mapping)");
+
+            if (IsErrorExist())
+            {
+                Debug.WriteLine("Cannot execute operation due to existing errors");
+                return false;
+            }
+
+            if (!CanExecuteOperation($"{sequenceType} {operationType} Sequence"))
+            {
+                return false;
+            }
+
+            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
+            {
+                _errorMessage = "Not all cards are connected.";
+                Debug.WriteLine("Error: Not all cards are connected");
+                return false;
+            }
+
+            if (settings == null)
+            {
+                _errorMessage = "Settings object (IMappingSettings) is null.";
+                Debug.WriteLine("Error: Settings object is null");
+                return false;
+            }
+
+            double mmPerPulse = settings.MmPerPulse;
+            if (mmPerPulse <= 0)
+            {
+                _errorMessage = "Invalid MmPerPulse setting (must be > 0).";
+                Debug.WriteLine($"Error: Invalid MmPerPulse setting: {mmPerPulse}");
+                return false;
+            }
+
+            try
+            {
+                m_status[3] = (char)Operation.Operating;
+
+
+                // Get the sequence steps based on type and operation
+                var sequenceSteps = GetSequenceSteps(sequenceType, operationType);
+
+                // Execute the sequence steps
+                foreach (var step in sequenceSteps)
+                {
+                    if (step.IsRequired)
+                    {
+                        progress?.Report($"Executing {step.Name}...");
+                        Debug.WriteLine($"Executing {step.Name} operation...");
+
+                        bool success = step.Operation(token);
+                        if (!success)
+                        {
+                            m_status[3] = (char)Operation.Stopping;
+                            Debug.WriteLine($"{step.Name} operation failed");
+                            return false;
+                        }
+
+                        await Task.Delay(DelayBetweenTask, token);
+                    }
+                }
+
+                // Always perform mapping operation during unload sequences (DownToUp)
+                progress?.Report("Performing mapping analysis (DownToUp)...");
+                Debug.WriteLine("Starting mapping operation (DownToUp)...");
+                await MappingOperation_DownToUp_WithAnalysis(token, settings);
+
+                // Optionally, you can analyze and store mapping results here if needed
+
+                // Update status
+                m_status[2] = (char)LoadStatus.HomePosition;
+                m_status[3] = (char)Operation.Stopping;
+
+                progress?.Report($"{sequenceType} {operationType} sequence (with mapping) completed successfully");
+                Debug.WriteLine($"{sequenceType} {operationType} sequence (with mapping) completed successfully");
+
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine($"{sequenceType} {operationType} sequence was canceled");
+                await SafelyDisableAllOutputs();
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Error during {sequenceType} {operationType}: {ex.Message}";
+                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
+                await SafelyDisableAllOutputs();
+                m_status[3] = (char)Operation.Stopping;
+                m_status[17] = (char)MappingStatus.Inexecution;
+                return false;
+            }
+        }
+        public async Task<FOUPCtrl.WaferMap.MappingAnalysisResult> ExecuteUnifiedMappingOperation(
+            CancellationToken token,
+            IMappingSettings settings,
+            SequenceType sequenceType,
+            OperationType operationType,
+            IProgress<string> progress = null)
+        {
+            bool success;
+            if (operationType == OperationType.Load)
+            {
+                success = await ExecuteUnifiedLoadMappingSequence(
+                    token,
+                    settings,
+                    sequenceType,
+                    operationType,
+                    progress);
+            }
+            else // Unload
+            {
+                success = await ExecuteUnifiedUnloadMappingSequence(
+                    token,
+                    settings,
+                    sequenceType,
+                    operationType,
+                    progress);
+            }
+
+            if (success)
+            {
+                if (operationType == OperationType.Load)
+                {
+                    var analysisResult = GetLastMappingAnalysisResult();
+                    return analysisResult;
+                }
+                else
+                {
+                    // For Unload, mapping analysis may not be relevant
+                    return null;
+                }
+            }
+            else
+            {
+                // Optionally, you can throw or return a result with error info
+                throw new InvalidOperationException(ErrorMessage);
+            }
+        }
+        public List<SequenceStep> GetSequenceSteps(SequenceType sequenceType, OperationType operationType)
+        {
+            var steps = new List<SequenceStep>();
+
+            switch (sequenceType)
+            {
+                case SequenceType.FOUP:
+                    steps = operationType == OperationType.Load ? GetFOUPLoadSteps() : GetFOUPUnloadSteps();
+                    break;
+                case SequenceType.Adaptor:
+                    steps = operationType == OperationType.Load ? GetAdaptorLoadSteps() : GetAdaptorUnloadSteps();
+                    break;
+                case SequenceType.FOSB:
+                    steps = operationType == OperationType.Load ? GetFOSBLoadSteps() : GetFOSBUnloadSteps();
+                    break;
+                case SequenceType.N2Purge:
+                    steps = operationType == OperationType.Load ? GetN2PurgeLoadSteps() : GetN2PurgeUnloadSteps();
+                    break;
+                default:
+                    steps = operationType == OperationType.Load ? GetFOUPLoadSteps() : GetFOUPUnloadSteps();
+                    break;
+            }
+
+            return steps;
+        }
+        private List<SequenceStep> GetFOUPLoadSteps() => new List<SequenceStep>
+        {
+            //new SequenceStep { Name = "FOUP Mount Sensor Monitor", Operation = StartContinuousFOUPMountSensorMonitoring, IsRequired = true },
+            //new SequenceStep { Name = "FOUP Mount Load Monitor", Operation = StartContinuousFOUPMountLoadMonitoring, IsRequired = true },
+            //new SequenceStep { Name = "Air Pressure Monitor", Operation = StartContinuousAirPressureMonitoring, IsRequired = true },
+            //new SequenceStep { Name = "FOUP Mount Sensor Monitor", Operation = StartContinuousFOUPMountSensorMonitoring, IsRequired = true },
+            new SequenceStep { Name = "Clamp", Operation = Clamp },
+            new SequenceStep { Name = "Dock Hand Pinch Monitor", Operation = StartContinuousDockHandPinchMonitoring, IsRequired = true },
+            new SequenceStep { Name = "Dock Forward", Operation = DockForward },
+            //new SequenceStep { Name = "Vacuum On", Operation = VacuumOn },
+            //new SequenceStep { Name = "Unlatch", Operation = Unlatch },
+            //new SequenceStep { Name = "FOUP Mount Sensor Monitor", Operation = StartContinuousFOUPMountSensorMonitoring, IsRequired = true },
+            //new SequenceStep { Name = "Latch", Operation = Latch },
+            new SequenceStep { Name = "Door Retention Monitor", Operation = StartContinuousDoorRetentionMonitoring, IsRequired = true },
+            new SequenceStep { Name = "Wafer Protrusion Monitor", Operation = StartContinuousWaferProtrusionMonitoring, IsRequired = true },
+            //new SequenceStep { Name = "Door Forward", Operation = DoorForward },
+            //new SequenceStep { Name = "Wafer Protrusion Monitor", Operation = StartContinuousWaferProtrusionMonitoring, IsRequired = true },
+            //Mapping sequence
+            //new SequenceStep { Name = "Elevator Down", Operation = ElevatorDown }
+        };
+        private List<SequenceStep> GetFOUPUnloadSteps() => new List<SequenceStep>
+        {
+            //new SequenceStep { Name = "Elevator Up", Operation = ElevatorUp },
+            //new SequenceStep { Name = "Door Backward", Operation = DoorBackward },
+            //new SequenceStep { Name = "Unlatch", Operation = Unlatch },
+            //new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
+            //new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
+            new SequenceStep { Name = "Unclamp", Operation = Unclamp }
+        };
+        private List<SequenceStep> GetAdaptorLoadSteps() => new List<SequenceStep>
+        {
+            //new SequenceStep { Name = "Door Forward", Operation = DoorForward },
+            //new SequenceStep { Name = "Vacuum On", Operation = VacuumOn },
+            new SequenceStep { Name = "Dock Forward", Operation = DockForward },
+            //new SequenceStep { Name = "Clamp", Operation = Clamp },
+            //new SequenceStep { Name = "Unlatch", Operation = Unlatch }
+        };
+        private List<SequenceStep> GetAdaptorUnloadSteps() => new List<SequenceStep>
+        {
+            new SequenceStep { Name = "Latch", Operation = Latch },
+            new SequenceStep { Name = "Unclamp", Operation = Unclamp },
+            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
+            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
+            new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
+        };
+        private List<SequenceStep> GetFOSBLoadSteps() => new List<SequenceStep>
+        {
+            //new SequenceStep { Name = "Door Forward", Operation = DoorForward },
+            new SequenceStep { Name = "Clamp", Operation = Clamp },
+            //new SequenceStep { Name = "Dock Forward", Operation = DockForward },
+            //new SequenceStep { Name = "Unlatch", Operation = Unlatch }
+        };
+        private List<SequenceStep> GetFOSBUnloadSteps() => new List<SequenceStep>
+        {
+            new SequenceStep { Name = "Latch", Operation = Latch },
+            new SequenceStep { Name = "Unclamp", Operation = Unclamp },
+            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
+            new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
+        };
+        private List<SequenceStep> GetN2PurgeLoadSteps() => new List<SequenceStep>
+        {
+            new SequenceStep { Name = "Door Forward", Operation = DoorForward },
+            new SequenceStep { Name = "Dock Forward", Operation = DockForward },
+            new SequenceStep { Name = "Vacuum On", Operation = VacuumOn },
+            new SequenceStep { Name = "Clamp", Operation = Clamp },
+            new SequenceStep { Name = "Unlatch", Operation = Unlatch }
+        };
+        private List<SequenceStep> GetN2PurgeUnloadSteps() => new List<SequenceStep>
+        {
+            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
+            new SequenceStep { Name = "Latch", Operation = Latch },
+            new SequenceStep { Name = "Unclamp", Operation = Unclamp },
+            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
+            new SequenceStep { Name = "Door Backward", Operation = DoorBackward }
+        };
+        private List<SequenceStep> GetOriginSteps() => new List<SequenceStep>
+        {
+            new SequenceStep { Name = "Door Retention Monitor", Operation = StartContinuousDoorRetentionMonitoring, IsRequired = true },
+            new SequenceStep { Name = "Mapping Off", Operation = MappingForward },
+            //new SequenceStep { Name = "Elevator Up", Operation = ElevatorUp },
+            //new SequenceStep { Name = "Door Backward", Operation = DoorBackward },
+            new SequenceStep { Name = "Latch", Operation = Latch },
+            new SequenceStep { Name = "Stop Vacuum Monitoring", Operation = StopVacuumMonitoringForOrigin, IsRequired = true },
+            new SequenceStep { Name = "Vacuum Off", Operation = VacuumOff },
+            new SequenceStep { Name = "Dock Backward", Operation = DockBackward },
+            new SequenceStep { Name = "Unclamp", Operation = Unclamp }
+        };
+        #endregion
+
+        #region Cassette Status Pre-Checking
+        private bool CheckCassetteStatusBeforeOrigin(CancellationToken token)
+        {
+            try
+            {
+                Debug.WriteLine("=== Pre-checking cassette status before origin sequence ===");
+
+                // Update sensor status first
+                UpdateSensorStatus();
+
+                // Check presence sensors (1,2,3)
+                bool presence1And2 = _sensorStatus.StatusPresence1And2 == 1;
+                bool presence3 = _sensorStatus.StatusPresence3 == 1;
+                bool mainPresenceDetected = presence1And2 && presence3;
+
+                // Check diagonal sensors
+                bool diagonal1 = _sensorStatus.StatusPresenceDiagonal1 == 0; // 0 = detected
+                bool diagonal2 = _sensorStatus.StatusPresenceDiagonal2 == 0; // 0 = detected
+                bool diagonalPresenceDetected = diagonal1 || diagonal2;
+
+                Debug.WriteLine($"Cassette Status Check:");
+                Debug.WriteLine($"  - Main Presence (1,2,3): {(mainPresenceDetected ? "DETECTED" : "NOT DETECTED")}");
+                Debug.WriteLine($"  - Diagonal Presence: {(diagonalPresenceDetected ? "DETECTED" : "NOT DETECTED")}");
+                Debug.WriteLine($"  - Latch Status: {(_sensorStatus.StatusLatch == 1 ? "LATCHED" : "UNLATCHED")}");
+                Debug.WriteLine($"  - Vacuum Status: {(_sensorStatus.StatusVacuum == 1 ? "ON" : "OFF")}");
+                Debug.WriteLine($"  - Clamp Status: {(_sensorStatus.StatusClamp == 1 ? "CLAMPED" : "UNCLAMPED")}");
+
+                // Determine cassette type and required actions
+                if (mainPresenceDetected)
+                {
+                    Debug.WriteLine("Cassette detected - checking type and required actions...");
+
+                    if (diagonalPresenceDetected)
+                    {
+                        Debug.WriteLine("12\" Cassette identified (diagonal sensors active)");
+
+                        // For 12" cassette, check if latch/vacuum operations are needed
+                        if (_sensorStatus.StatusUnlatch == 1 && _sensorStatus.StatusVacuum == 0)
+                        {
+                            Debug.WriteLine("12\" Cassette: Vacuum ON but not latched - will include latch in origin sequence");
+                            return true; // Proceed with full origin sequence including latch
+                        }
+                        else if (_sensorStatus.StatusVacuum == 1)
+                        {
+                            Debug.WriteLine("12\" Cassette: Vacuum ON - will include vacuum off in origin sequence");
+                            return true; // Proceed with origin sequence including vacuum off
+                        }
+                    }
+                    else
+                    {
+                        Debug.WriteLine("Smaller cassette identified (diagonal sensors inactive)");
+                        Debug.WriteLine("Smaller cassette: May skip vacuum/latch operations if not required");
+                        return true; // Proceed with origin sequence, but steps may be skipped based on sensor states
+                    }
+                }
+                else
+                {
+                    Debug.WriteLine("No cassette detected - will focus on homing axes and basic origin steps");
+                    return true; // Proceed with basic origin sequence (no cassette-specific steps needed)
+                }
+
+                Debug.WriteLine("Cassette status check completed successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during cassette status pre-check: {ex.Message}");
+                _errorMessage = $"Cassette status pre-check failed: {ex.Message}";
+                return false;
+            }
+        }
+
+        private bool PerformCassetteStatusPreCheck(CancellationToken token)
+        {
+            Debug.WriteLine("Performing cassette status pre-check before origin...");
+            return CheckCassetteStatusBeforeOrigin(token);
+        }
+        #endregion
+
+        #region Origin and System Operations
+        public async Task<bool> ExecuteStartMotion(string motion, int sequenceType, IMappingSettings settings, CancellationToken token)
+        {
+            if (string.IsNullOrEmpty(motion))
+            {
+                _errorMessage = "Motion command is null or empty";
+                return false;
+            }
+
+            if (!CanExecuteOperation($"ExecuteStartMotion: {motion}"))
+            {
+                return false;
+            }
+
+            Debug.WriteLine($"Executing {motion} with sequence type {sequenceType}");
+
+            try
+            {
+                switch (motion)
+                {
+                    case "Load":
+                        UpdateSensorStatus();
+                        if (m_status[2] == (char)LoadStatus.LoadPosition)
+                        {
+                            Debug.WriteLine("System is already at Load Position");
+                            _errorMessage = "System is already at Load Position. No action needed.";
+
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                MessageBox.Show(
+                                    "The system is already at Load Position.\n\nNo loading sequence is required.",
+                                    "Already at Load Position",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Information
+                                );
+                            });
+
+                            return true;
+                        }
+
+                        bool loadSuccess = await ExecuteSequenceOperation(sequenceType, OperationType.Load, token);
+                        if (loadSuccess)
+                        {
+                            // **ENHANCED: Verify we actually reached load position**
+                            UpdateSensorStatus();
+                            // Add your load position verification logic here if needed
+                            m_status[2] = (char)LoadStatus.LoadPosition;
+                            Debug.WriteLine("Load sequence completed successfully - Status updated to Load Position");
+                            UpdateSensorStatus();
+                        }
+                        else
+                        {
+                            // **NEW: Set appropriate status on failure**
+                            m_status[2] = (char)LoadStatus.Indefinite;
+                            Debug.WriteLine("Load sequence failed - Status set to Indefinite");
+                        }
+                        return loadSuccess;
+
+                    case "Unload":
+                        UpdateSensorStatus();
+                        if (m_status[2] == (char)LoadStatus.HomePosition)
+                        {
+                            Debug.WriteLine("System is already at Home Position");
+                            _errorMessage = "System is already at Home Position. No action needed.";
+
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                MessageBox.Show(
+                                    "The system is already at Home Position.\n\nNo unloading sequence is required.",
+                                    "Already at Home Position",
+                                    MessageBoxButton.OK,
+                                    MessageBoxImage.Information
+                                );
+                            });
+
+                            return true;
+                        }
+
+                        bool unloadSuccess = await ExecuteSequenceOperation(sequenceType, OperationType.Unload, token);
+                        if (unloadSuccess)
+                        {
+                            // **ENHANCED: Verify we actually reached home position**
+                            UpdateSensorStatus();
+                            if (IsActuallyAtOriginPosition()) // Use the same check as origin
+                            {
+                                m_status[2] = (char)LoadStatus.HomePosition;
+                                Debug.WriteLine("Unload sequence completed successfully - Status updated to Home Position");
+                            }
+                            else
+                            {
+                                m_status[2] = (char)LoadStatus.Indefinite;
+                                Debug.WriteLine("Unload sequence completed but not at home position - Status set to Indefinite");
+                            }
+                            UpdateSensorStatus();
+                        }
+                        else
+                        {
+                            // **NEW: Set appropriate status on failure**
+                            m_status[2] = (char)LoadStatus.Indefinite;
+                            Debug.WriteLine("Unload sequence failed - Status set to Indefinite");
+                        }
+                        return unloadSuccess;
+
+                    case "Load (map)":
+                        bool loadMapSuccess = await ExecuteUnifiedLoadMappingSequence(
+                            token,
+                            settings,
+                            (SequenceType)sequenceType,
+                            OperationType.Load);
+                        return loadMapSuccess;
+
+                    case "Unload (map)":
+                        bool unloadMapSuccess = await ExecuteUnifiedUnloadMappingSequence(
+                            token,
+                            settings,
+                            (SequenceType)sequenceType,
+                            OperationType.Unload);
+                        return unloadMapSuccess;
+
+                    case "MAP ACAL":
+                        var result = await MappingAutoCalibration(token, settings);
+                        return result.Success;
+
+                    default:
+                        _errorMessage = $"Unknown motion command: {motion}";
+                        Debug.WriteLine(_errorMessage);
+                        return false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _errorMessage = $"{motion} operation was cancelled";
+                m_status[2] = (char)LoadStatus.Indefinite; // **NEW: Clear status on cancellation**
+                Debug.WriteLine(_errorMessage);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Error during {motion} operation: {ex.Message}";
+                m_status[2] = (char)LoadStatus.Indefinite; // **NEW: Clear status on error**
+                Debug.WriteLine($"Error during {motion} operation: {ex.Message}");
+                return false;
+            }
+        }
+
+        private async Task<bool> ExecuteSequenceOperation(int sequenceType, OperationType operationType, CancellationToken token)
+        {
+            var steps = GetSequenceSteps((SequenceType)sequenceType, operationType);
+
+            foreach (var step in steps)
+            {
+                if (!step.Operation(token))
+                {
+                    _errorMessage = $"{operationType} sequence failed at step: {step.Name}";
+                    return false;
+                }
+
+                // Add delay between steps if needed
+                //await Task.Delay(DelayBetweenTask, token);
+            }
+
+            return true;
+        }
+        public async Task<bool> ExecuteOriginCommand(CancellationToken token)
+        {
+            Debug.WriteLine("Starting origin sequence execution - Fast mode (no delays)");
+
+            try
+            {
+                // **FIXED: Check actual sensor positions instead of just status**
+                UpdateSensorStatus();
+
+                // Check if we're actually at origin position by examining sensors
+                bool actuallyAtOrigin = IsActuallyAtOriginPosition();
+
+                char currentLoadStatus = m_status[2];
+
+                if (currentLoadStatus == (char)LoadStatus.HomePosition && actuallyAtOrigin)
+                {
+                    Debug.WriteLine("System is confirmed at Home Position (origin) - both status and sensors agree");
+                    _errorMessage = "System is already at Home Position (origin). No action needed.";
+
+                    // Show acknowledgment to user via UI thread
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        MessageBox.Show(
+                            "The system is already at Home Position (origin).\n\nNo movement is required.",
+                            "Already at Origin",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information
+                        );
+                    });
+
+                    return true;
+                }
+
+                // **NEW: If status says origin but sensors disagree, correct the status**
+                if (currentLoadStatus == (char)LoadStatus.HomePosition && !actuallyAtOrigin)
+                {
+                    Debug.WriteLine("Status shows origin but sensors indicate otherwise - correcting status and proceeding with origin");
+                    m_status[2] = (char)LoadStatus.Indefinite; // Clear incorrect status
+                }
+
+                // Continue with origin sequence...
+                var originSteps = GetOriginSteps();
+                Debug.WriteLine($"Origin sequence contains {originSteps.Count} steps");
+
+                foreach (var step in originSteps)
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    Debug.WriteLine($"Executing origin step: {step.Name}");
+
+                    bool stepResult = step.Operation(token);
+
+                    if (!stepResult)
+                    {
+                        _errorMessage = $"Origin sequence failed at step: {step.Name}";
+                        Debug.WriteLine(_errorMessage);
+
+                        // **NEW: Don't set HomePosition status if origin failed**
+                        m_status[2] = (char)LoadStatus.Indefinite;
+                        return false;
+                    }
+
+                    Debug.WriteLine($"Origin step '{step.Name}' completed successfully");
+                }
+
+                // **ENHANCED: Verify we actually reached origin before setting status**
+                UpdateSensorStatus();
+                if (IsActuallyAtOriginPosition())
+                {
+                    m_status[2] = (char)LoadStatus.HomePosition;
+                    Debug.WriteLine("Origin sequence completed successfully - Status updated to Home Position");
+                }
+                else
+                {
+                    m_status[2] = (char)LoadStatus.Indefinite;
+                    Debug.WriteLine("Origin sequence completed but not at expected position - Status set to Indefinite");
+                }
+
+                UpdateSensorStatus();
+
+                Debug.WriteLine("Origin sequence completed successfully - all steps executed");
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                Debug.WriteLine("Origin sequence was cancelled");
+                _errorMessage = "Origin operation was cancelled";
+                m_status[2] = (char)LoadStatus.Indefinite; // **NEW: Clear status on failure**
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Origin sequence failed with exception: {ex.Message}");
+                _errorMessage = $"Origin operation failed: {ex.Message}";
+                m_status[2] = (char)LoadStatus.Indefinite; // **NEW: Clear status on failure**
+                return false;
+            }
+        }
+        private bool IsActuallyAtOriginPosition()
+        {
+            try
+            {
+                UpdateSensorStatus();
+
+                // Define what "origin position" means based on your system
+                // Adjust these criteria based on your actual origin position requirements
+
+                bool elevatorAtTop = _sensorStatus.StatusElevatorUp == 1;
+                bool dockRetracted = _sensorStatus.StatusDockBackward == 1;
+                bool mappingRetracted = _sensorStatus.StatusMappingForward == 1;
+                bool doorClosed = _sensorStatus.StatusDoorBackward == 1; // Adjust if needed
+                bool unclamped = _sensorStatus.StatusUnclamp == 1;
+                bool vacuumOff = _sensorStatus.StatusVacuum == 0;
+
+                // **IMPORTANT: Adjust these conditions based on your actual origin requirements**
+                bool atOrigin = elevatorAtTop && dockRetracted && mappingRetracted && unclamped && vacuumOff;
+
+                Debug.WriteLine($"Origin position check:");
+                Debug.WriteLine($"  - Elevator at top: {elevatorAtTop}");
+                Debug.WriteLine($"  - Dock retracted: {dockRetracted}");
+                Debug.WriteLine($"  - Mapping retracted: {mappingRetracted}");
+                Debug.WriteLine($"  - Door closed: {doorClosed}");
+                Debug.WriteLine($"  - Unclamped: {unclamped}");
+                Debug.WriteLine($"  - Vacuum off: {vacuumOff}");
+                Debug.WriteLine($"  - Overall at origin: {atOrigin}");
+
+                return atOrigin;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error checking origin position: {ex.Message}");
+                return false; // Conservative approach - if we can't check, assume not at origin
+            }
+        }
+        public void ForceClose(CancellationTokenSource cts)
+        {
+            cts?.Cancel();
+
+            if (ConnectionIOCard1)
+            {
+                // Turn off all outputs on card 1
+                DigitalWrite(_credenIOCard1, 2, (byte)0);
+                DigitalWrite(_credenIOCard1, 3, (byte)0);
+            }
+
+            if (ConnectionIOCard2)
+            {
+                // Turn off all outputs on card 2
+                DigitalWrite(_credenIOCard2, 2, (byte)0);
+                DigitalWrite(_credenIOCard2, 3, (byte)0);
+            }
+
+            UpdateSensorStatus();
+        }
+        #endregion
+
+        #region Status and Information
+        public string GetStatus()
+        {
+            UpdateSensorStatus();
+            return string.Concat(m_status);
+        }
+        public string GetStatus1()
+        {
+            UpdateSensorStatus();
+            string temp = string.Concat(m_status);
+            return temp.Substring(0, 10);
+        }
+        public string GetStatus2()
+        {
+            UpdateSensorStatus();
+            string temp = string.Concat(m_status);
+            return temp.Substring(10, 10);
+        }
+        public string GetStatusCode()
+        {
+            if (sErrorCode != "00")
+                sStatusCode = "05";
+            else
+                sStatusCode = "00";
+            return sStatusCode;
+        }
+        private FOUPCtrl.WaferMap.MappingAnalysisResult _lastMappingAnalysisResult;
+        public FOUPCtrl.WaferMap.MappingAnalysisResult GetLastMappingAnalysisResult()
+        {
+            return _lastMappingAnalysisResult;
+        }
+        private string GetSlotStatusText(int status)
+        {
+            switch (status)
+            {
+                case 0: return "Empty";
+                case 1: return "Normal";
+                case 2: return "Crossed";
+                case 3: return "Thick";
+                case 4: return "Thin";
+                case 5: return "Position Error";
+                case 99: return "Error";
+                default: return $"Unknown ({status})";
+            }
+        }
+        #endregion
+
+        #region Validation and Error Management
+        private bool ValidateSystemReady(string operationName = "Operation")
+        {
+            // **CRITICAL: ONLY allow Reset operations when there are errors**
+            if (IsErrorExist())
+            {
+                // Only allow Reset Error operation when errors exist
+                if (operationName.ToUpper().Contains("RESET") || operationName.ToUpper().Contains("RSET"))
+                {
+                    Debug.WriteLine($"{operationName}: Allowing reset operation despite existing errors");
+
+                    // For reset operations, only check hardware connections
+                    if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
+                    {
+                        _errorMessage = "Not all cards are connected.";
+                        Debug.WriteLine($"{operationName} blocked: Hardware not connected");
+                        return false;
+                    }
+                    return true;
+                }
+                else
+                {
+                    // Block ALL other operations if any error exists
+                    string errorInfo = !string.IsNullOrEmpty(_errorMessage) ? _errorMessage : $"Error Code: {sErrorCode}";
+                    _errorMessage = $"Cannot execute {operationName}: System has errors that must be cleared first. {errorInfo}";
+                    Debug.WriteLine($"OPERATION BLOCKED: {_errorMessage}");
+                    return false;
+                }
+            }
+
+            // Standard validation for when no errors exist
+            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
+            {
+                _errorMessage = "Not all cards are connected.";
+                Debug.WriteLine($"{operationName} blocked: Hardware not connected");
+                return false;
+            }
+
+            try
+            {
+                UpdateSensorStatus();
+                CheckConflictingSensorStates();
+                Debug.WriteLine($"{operationName}: System validation passed");
+                return true;
+            }
+            catch (SensorErrorException ex)
+            {
+                Debug.WriteLine($"{operationName} blocked: {ex.Message}");
+                _errorMessage = ex.Message;
+                return false;
+            }
+        }
+        private bool ValidateAnalysisResult(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
+        {
+            if (analysisResult?.WaferStatus == null)
+            {
+                _errorMessage = "Analysis result or wafer status is null";
+                return false;
+            }
+
+            for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
+            {
+                if (analysisResult.WaferStatus[i] == 99) // Error status
+                {
+                    _errorMessage = $"Mapping analysis failed - error status detected in slot {i + 1}";
+                    Debug.WriteLine($"Mapping analysis failed - error status detected in slot {i + 1}");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        private void LogAnalysisResults(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
+        {
+            Debug.WriteLine($"Mapping analysis completed: {analysisResult.DetectedWaferCount} wafers detected");
+
+            int slotsToLog = Math.Min(analysisResult.ExpectedSlots, 5);
+            for (int i = 0; i < slotsToLog; i++)
+            {
+                string statusText = GetSlotStatusText(analysisResult.WaferStatus[i]);
+                Debug.WriteLine($"Slot {i + 1}: {statusText}, Thickness: {analysisResult.WaferThicknessMm[i]:F3}mm");
+            }
+        }
+        public bool ResetError()
+        {
+            try
+            {
+                Debug.WriteLine("Resetting errors...");
+
+                // Clear software flags
+                sErrorCode = "00";
+                sInterlockCode = "00";
+                sStatusCode = "00";
+                m_status[0] = (char)MachineStatus.Normal;
+                m_status[4] = '0';
+                m_status[5] = '0';
+
+                // Clear hardware outputs if connected
+                if (ConnectionIOCard1)
+                {
+                    DigitalWrite(_credenIOCard1, 2, (byte)0);
+                    DigitalWrite(_credenIOCard1, 3, (byte)0);
+                }
+                if (ConnectionIOCard2)
+                {
+                    DigitalWrite(_credenIOCard2, 2, (byte)0);
+                    DigitalWrite(_credenIOCard2, 3, (byte)0);
+                }
+
+                Thread.Sleep(100);
+
+                // After clearing errors, validate system normally
+                try
+                {
+                    UpdateSensorStatus();
+                    CheckConflictingSensorStates();
+                    //CheckASensorErrors();
+                }
+                catch (SensorErrorException ex)
+                {
+                    Debug.WriteLine($"Warning: Error detected immediately after reset: {ex.Message}");
+                    // Don't fail the reset - let the error be detected on next operation
+                }
+
+                _errorMessage = string.Empty;
+                Debug.WriteLine("Reset completed successfully");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Reset failed: {ex.Message}");
+                _errorMessage = $"Reset failed: {ex.Message}";
+                return false;
+            }
+        }
+        private bool CanExecuteOperation(string operationName)
+        {
+            // Block ALL operations if there's any error (recoverable or unrecoverable)
+            if (IsErrorExist())
+            {
+                string errorInfo = !string.IsNullOrEmpty(_errorMessage) ? _errorMessage : $"Error Code: {sErrorCode}";
+
+                if (m_status[0] == (char)MachineStatus.RecoverableError)
+                {
+                    _errorMessage = $"Cannot execute {operationName}: System has a recoverable error that must be cleared first. Error: {errorInfo}";
+                    Debug.WriteLine($"OPERATION BLOCKED: {_errorMessage}");
+                    return false;
+                }
+                else if (m_status[0] == (char)MachineStatus.UnrecoverableError)
+                {
+                    _errorMessage = $"Cannot execute {operationName}: System has an unrecoverable error that must be reset first. Error: {errorInfo}";
+                    Debug.WriteLine($"OPERATION BLOCKED: {_errorMessage}");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+        #endregion
+
+        #region IO Monitoring and Control
         public bool PollIOStatus(int selectedCardIndex, List<IOBitStatus> inputBits, List<IOBitStatus> outputBits)
         {
             if (!ConnectionIOCard1 && !ConnectionIOCard2)
@@ -5762,14 +7276,6 @@ namespace FoupControl
                 return false;
             }
         }
-
-        /// <summary>
-        /// Populates the IO bit collections for Card 1
-        /// </summary>
-        /// <param name="cardId">Card ID</param>
-        /// <param name="selectedCard">The IO card instance</param>
-        /// <param name="inputBits">Input bits collection to populate</param>
-        /// <param name="outputBits">Output bits collection to populate</param>
         private void PopulateCard1IOBits(byte cardId, IO1616Card selectedCard, List<IOBitStatus> inputBits, List<IOBitStatus> outputBits)
         {
             string driver = $"CredenIODriver[{cardId}][{IOComPort1 ?? "COM4"}]";
@@ -5824,14 +7330,6 @@ namespace FoupControl
                 AddDefaultCard1OutputBits(cardId, driver, outputBits);
             }
         }
-
-        /// <summary>
-        /// Populates the IO bit collections for Card 2
-        /// </summary>
-        /// <param name="cardId">Card ID</param>
-        /// <param name="selectedCard">The IO card instance</param>
-        /// <param name="inputBits">Input bits collection to populate</param>
-        /// <param name="outputBits">Output bits collection to populate</param>
         private void PopulateCard2IOBits(byte cardId, IO1616Card selectedCard, List<IOBitStatus> inputBits, List<IOBitStatus> outputBits)
         {
             string driver = $"CredenIODriver[{cardId}][{IOComPort2 ?? "COM4"}]";
@@ -5886,14 +7384,6 @@ namespace FoupControl
                 AddDefaultCard2OutputBits(cardId, driver, outputBits);
             }
         }
-
-        /// <summary>
-        /// Sets an output bit to the specified value
-        /// </summary>
-        /// <param name="selectedCardIndex">0 for Card 1, 1 for Card 2</param>
-        /// <param name="bitIndex">Bit index to set</param>
-        /// <param name="value">Value to set (true = ON, false = OFF)</param>
-        /// <returns>True if successful, false otherwise</returns>
         public bool SetIOBit(int selectedCardIndex, int bitIndex, bool value)
         {
             try
@@ -5953,10 +7443,6 @@ namespace FoupControl
                 return false;
             }
         }
-
-        /// <summary>
-        /// Adds default output bits for Card 1 when reading hardware state fails
-        /// </summary>
         private void AddDefaultCard1OutputBits(byte cardId, string driver, List<IOBitStatus> outputBits)
         {
             outputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "VACUMM VALVE 1A", IsOn = false, Driver = driver, Port = 0 });
@@ -5976,10 +7462,6 @@ namespace FoupControl
             outputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "MAPPING FORWARD", IsOn = false, Driver = driver, Port = 14 });
             outputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "MAPPING BACKWARD", IsOn = false, Driver = driver, Port = 15 });
         }
-
-        /// <summary>
-        /// Adds default output bits for Card 2 when reading hardware state fails
-        /// </summary>
         private void AddDefaultCard2OutputBits(byte cardId, string driver, List<IOBitStatus> outputBits)
         {
             outputBits.Add(new IOBitStatus { ID = cardId, Bit = 0, Command = "LED - PRESENCE", IsOn = false, Driver = driver, Port = 0 });
@@ -5999,8 +7481,81 @@ namespace FoupControl
             outputBits.Add(new IOBitStatus { ID = cardId, Bit = 14, Command = "-", IsOn = false, Driver = driver, Port = 14 });
             outputBits.Add(new IOBitStatus { ID = cardId, Bit = 15, Command = "-", IsOn = false, Driver = driver, Port = 15 });
         }
+        #endregion
 
-        // Add the IOBitStatus class to FOUP_Ctrl if it doesn't exist
+        #region Utility and Helper Methods
+        private async Task SafelyDisableAllOutputs()
+        {
+            if (ConnectionIOCard1)
+            {
+                try
+                {
+                    DigitalWrite(_credenIOCard1, 2, (byte)0); // Turn off all outputs on port 2
+                    DigitalWrite(_credenIOCard1, 3, (byte)0); // Turn off all outputs on port 3
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error turning off outputs on card 1: {ex.Message}");
+                }
+            }
+
+            if (ConnectionIOCard2)
+            {
+                try
+                {
+                    DigitalWrite(_credenIOCard2, 2, (byte)0); // Turn off all outputs on port 2
+                    DigitalWrite(_credenIOCard2, 3, (byte)0); // Turn off all outputs on port 3
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Error turning off outputs on card 2: {ex.Message}");
+                }
+            }
+        }
+        private async Task RetractMappingArmAsync(CancellationToken token)
+        {
+            try
+            {
+                Debug.WriteLine("Retracting mapping arm...");
+                await Task.Delay(300, token); // Small delay before retracting
+
+                byte writeByte = 0;
+                writeByte = SetBit(writeByte, _outputList.MappingForward);
+                int portId = _outputList.MappingForward < 8 ? 2 : 3;
+                DigitalWrite(_credenIOCard1, portId, writeByte);
+
+                int retractRetries = 0;
+                while (retractRetries < 15 && !token.IsCancellationRequested)
+                {
+                    await Task.Delay(100, token);
+                    UpdateSensorStatus();
+                    if (_sensorStatus.StatusMappingForward == 1)
+                    {
+                        Debug.WriteLine("Mapping arm retracted successfully.");
+                        break;
+                    }
+                    retractRetries++;
+                }
+
+                // Turn off output regardless of status
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+
+                if (_sensorStatus.StatusMappingForward != 1)
+                {
+                    Debug.WriteLine("WARNING: Mapping arm may not be fully retracted (Sensor StatusMappingForward not detected).");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error retracting mapping arm: {ex.Message}");
+                // Still attempt to turn off outputs even if there was an error
+                int portId = _outputList.MappingForward < 8 ? 2 : 3;
+                DigitalWrite(_credenIOCard1, portId, (byte)0);
+            }
+        }
+        #endregion
+
+        #region Nested Classes
         public class IOBitStatus
         {
             public int ID { get; set; }
@@ -6012,421 +7567,6 @@ namespace FoupControl
             public int DelayMs { get; set; }
             public string Configuration { get; set; }
         }
-
-        /// <summary>
-        /// Moves the elevator to the mapping start position using values from the current position table
-        /// </summary>
-        /// <param name="token">Cancellation token for the operation</param>
-        /// <returns>True if the elevator successfully reached the mapping start position, false otherwise</returns>
-        public bool ElevatorMappingStartPosition(CancellationToken token)
-        {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
-
-            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
-            {
-                _errorMessage = "Not all cards are connected - cannot move to mapping start position.";
-                Debug.WriteLine(_errorMessage);
-                return false;
-            }
-
-            try
-            {
-                Debug.WriteLine("Starting elevator mapping start position operation...");
-
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Get the mapping start position from the current position table based on active mapping type
-                double mappingStartPositionMm = FOUPCtrl.Models.Settings.Instance.CurrentPositionTable.MapStartPositionMm;
-                int mappingStartTargetPulse = (int)mappingStartPositionMm;
-
-                Debug.WriteLine($"Using mapping start position from Position Table {FOUPCtrl.Models.Settings.Instance.CurrentProfile.PositionTableNo}:");
-                Debug.WriteLine($"  Position: {mappingStartPositionMm}mm ({mappingStartTargetPulse} pulses)");
-                Debug.WriteLine($"  Active Type: {FOUPCtrl.Models.Settings.Instance.ActiveMappingType} ({FOUPCtrl.Models.Settings.Instance.CurrentProfile.Name})");
-
-                // First, ensure elevator is at top position (home)
-                Debug.WriteLine("Moving elevator to top position first...");
-                bool elevatorUpSuccess = ElevatorUp(token);
-                if (!elevatorUpSuccess)
-                {
-                    _errorMessage = "Failed to move elevator to top position before mapping start position.";
-                    Debug.WriteLine(_errorMessage);
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Set absolute position to 0 at top
-                Debug.WriteLine("Setting absolute position to 0 at top position...");
-                CardStatus status = _credenAxisCard.SetAbsPosition(3, 0);
-                if (status != CardStatus.Successful)
-                {
-                    _errorMessage = $"Failed to set absolute position to 0: {status}";
-                    Debug.WriteLine(_errorMessage);
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Wait for position setting to take effect
-                Thread.Sleep(200);
-
-                Debug.WriteLine($"Moving elevator to mapping start position: {mappingStartTargetPulse} pulses...");
-
-                // Get current position
-                int currentPosition = 0;
-                status = _credenAxisCard.GetAbsPosition(3, ref currentPosition);
-                if (status != CardStatus.Successful)
-                {
-                    _errorMessage = $"Failed to read current position: {status}";
-                    Debug.WriteLine(_errorMessage);
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                Debug.WriteLine($"Current position: {currentPosition} pulses");
-
-                // Move to mapping start position if not already there
-                if (currentPosition > mappingStartTargetPulse)
-                {
-                    // Use elevator down motors to reach mapping start position
-                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
-                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
-                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
-
-                    // Turn on elevator down motors
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, true);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, true);
-
-                    var stopwatch = Stopwatch.StartNew();
-                    bool targetReached = false;
-
-                    while (!targetReached && stopwatch.ElapsedMilliseconds < 10000) // 10 second timeout
-                    {
-                        token.ThrowIfCancellationRequested();
-
-                        // Read current position
-                        _credenAxisCard.GetAbsPosition(3, ref currentPosition);
-
-                        if (currentPosition <= mappingStartTargetPulse)
-                        {
-                            targetReached = true;
-                            Debug.WriteLine($"Mapping start position reached: {currentPosition} pulses");
-                        }
-
-                        Thread.Sleep(10); // Small delay to prevent excessive polling
-                    }
-
-                    // Turn off elevator motors
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
-
-                    if (!targetReached)
-                    {
-                        _errorMessage = $"Failed to reach mapping start position within timeout. Current: {currentPosition}, Target: {mappingStartTargetPulse}";
-                        Debug.WriteLine(_errorMessage);
-                        m_status[3] = (char)Operation.Stopping;
-                        return false;
-                    }
-                }
-                else
-                {
-                    Debug.WriteLine($"Already at or below mapping start position. Current: {currentPosition}, Target: {mappingStartTargetPulse}");
-                }
-
-                // Wait for system to stabilize
-                Thread.Sleep(500);
-
-                // Verify final position
-                _credenAxisCard.GetAbsPosition(3, ref currentPosition);
-                Debug.WriteLine($"Final position: {currentPosition} pulses ({currentPosition * FOUPCtrl.Models.Settings.Instance.MmPerPulse:F2}mm)");
-
-                // Set operation status to stopping
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("Elevator mapping start position operation completed successfully");
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                _errorMessage = "Elevator mapping start position operation was canceled.";
-                Debug.WriteLine(_errorMessage);
-
-                // Safely stop any ongoing motor operations
-                try
-                {
-                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
-                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
-                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error stopping motors during cancellation: {ex.Message}");
-                }
-
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _errorMessage = $"Error during elevator mapping start position operation: {ex.Message}";
-                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
-
-                // Safely stop any ongoing motor operations
-                try
-                {
-                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
-                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
-                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
-                }
-                catch (Exception motorEx)
-                {
-                    Debug.WriteLine($"Error stopping motors during exception handling: {motorEx.Message}");
-                }
-
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Moves the elevator to the mapping end position using values from the current position table
-        /// </summary>
-        /// <param name="token">Cancellation token for the operation</param>
-        /// <returns>True if the elevator successfully reached the mapping end position, false otherwise</returns>
-        public bool ElevatorMappingEndPosition(CancellationToken token)
-        {
-            // Clear any previous error messages
-            _errorMessage = string.Empty;
-
-            if (!ConnectionIOCard1 || !ConnectionIOCard2 || !ConnectionAxisCard)
-            {
-                _errorMessage = "Not all cards are connected - cannot move to mapping end position.";
-                Debug.WriteLine(_errorMessage);
-                return false;
-            }
-
-            try
-            {
-                Debug.WriteLine("Starting elevator mapping end position operation...");
-
-                // Set operation status
-                m_status[3] = (char)Operation.Operating;
-
-                // Get the mapping end position from the current position table based on active mapping type
-                double mappingEndPositionMm = FOUPCtrl.Models.Settings.Instance.CurrentPositionTable.MapEndPositionMm;
-                int mappingEndTargetPulse = (int)mappingEndPositionMm;
-
-                Debug.WriteLine($"Using mapping end position from Position Table {FOUPCtrl.Models.Settings.Instance.CurrentProfile.PositionTableNo}:");
-                Debug.WriteLine($"  Position: {mappingEndPositionMm}mm ({mappingEndTargetPulse} pulses)");
-                Debug.WriteLine($"  Active Type: {FOUPCtrl.Models.Settings.Instance.ActiveMappingType} ({FOUPCtrl.Models.Settings.Instance.CurrentProfile.Name})");
-
-                // First, ensure elevator is at top position (home)
-                Debug.WriteLine("Moving elevator to top position first...");
-                bool elevatorUpSuccess = ElevatorUp(token);
-                if (!elevatorUpSuccess)
-                {
-                    _errorMessage = "Failed to move elevator to top position before mapping end position.";
-                    Debug.WriteLine(_errorMessage);
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Set absolute position to 0 at top
-                Debug.WriteLine("Setting absolute position to 0 at top position...");
-                CardStatus status = _credenAxisCard.SetAbsPosition(3, 0);
-                if (status != CardStatus.Successful)
-                {
-                    _errorMessage = $"Failed to set absolute position to 0: {status}";
-                    Debug.WriteLine(_errorMessage);
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                // Wait for position setting to take effect
-                Thread.Sleep(200);
-
-                Debug.WriteLine($"Moving elevator to mapping end position: {mappingEndTargetPulse} pulses...");
-
-                // Get current position
-                int currentPosition = 0;
-                status = _credenAxisCard.GetAbsPosition(3, ref currentPosition);
-                if (status != CardStatus.Successful)
-                {
-                    _errorMessage = $"Failed to read current position: {status}";
-                    Debug.WriteLine(_errorMessage);
-                    m_status[3] = (char)Operation.Stopping;
-                    return false;
-                }
-
-                Debug.WriteLine($"Current position: {currentPosition} pulses");
-
-                // Move to mapping end position if not already there
-                if (currentPosition > mappingEndTargetPulse)
-                {
-                    // Use elevator down motors to reach mapping end position
-                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
-                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
-                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
-
-                    // Turn on elevator down motors
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, true);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, true);
-
-                    var stopwatch = Stopwatch.StartNew();
-                    bool targetReached = false;
-
-                    while (!targetReached && stopwatch.ElapsedMilliseconds < 15000) // 15 second timeout (longer for deeper movement)
-                    {
-                        token.ThrowIfCancellationRequested();
-
-                        // Read current position
-                        _credenAxisCard.GetAbsPosition(3, ref currentPosition);
-
-                        if (currentPosition <= mappingEndTargetPulse)
-                        {
-                            targetReached = true;
-                            Debug.WriteLine($"Mapping end position reached: {currentPosition} pulses");
-                        }
-
-                        Thread.Sleep(10); // Small delay to prevent excessive polling
-                    }
-
-                    // Turn off elevator motors
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
-
-                    if (!targetReached)
-                    {
-                        _errorMessage = $"Failed to reach mapping end position within timeout. Current: {currentPosition}, Target: {mappingEndTargetPulse}";
-                        Debug.WriteLine(_errorMessage);
-                        m_status[3] = (char)Operation.Stopping;
-                        return false;
-                    }
-                }
-                else
-                {
-                    Debug.WriteLine($"Already at or below mapping end position. Current: {currentPosition}, Target: {mappingEndTargetPulse}");
-                }
-
-                // Wait for system to stabilize
-                Thread.Sleep(500);
-
-                // Verify final position
-                _credenAxisCard.GetAbsPosition(3, ref currentPosition);
-                Debug.WriteLine($"Final position: {currentPosition} pulses ({currentPosition * FOUPCtrl.Models.Settings.Instance.MmPerPulse:F2}mm)");
-
-                // Set operation status to stopping
-                m_status[3] = (char)Operation.Stopping;
-
-                Debug.WriteLine("Elevator mapping end position operation completed successfully");
-                return true;
-            }
-            catch (OperationCanceledException)
-            {
-                _errorMessage = "Elevator mapping end position operation was canceled.";
-                Debug.WriteLine(_errorMessage);
-
-                // Safely stop any ongoing motor operations
-                try
-                {
-                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
-                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
-                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"Error stopping motors during cancellation: {ex.Message}");
-                }
-
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-            catch (Exception ex)
-            {
-                _errorMessage = $"Error during elevator mapping end position operation: {ex.Message}";
-                Debug.WriteLine($"{_errorMessage}\n{ex.StackTrace}");
-
-                // Safely stop any ongoing motor operations
-                try
-                {
-                    int portId = _outputList.ElevatorDown1 < 8 ? 2 : 3;
-                    int elevatorDown1Bit = _outputList.ElevatorDown1 % 8;
-                    int elevatorDown2Bit = _outputList.ElevatorDown2 % 8;
-                    WriteBit(_credenIOCard1, portId, elevatorDown1Bit, false);
-                    WriteBit(_credenIOCard1, portId, elevatorDown2Bit, false);
-                }
-                catch (Exception motorEx)
-                {
-                    Debug.WriteLine($"Error stopping motors during exception handling: {motorEx.Message}");
-                }
-
-                m_status[3] = (char)Operation.Stopping;
-                return false;
-            }
-        }
-
-        /// <summary>
-        /// Converts the mapping analysis result to a string format showing wafer status for each slot
-        /// </summary>
-        /// <param name="analysisResult">The mapping analysis result to convert</param>
-        /// <returns>String representation of wafer status (e.g., "0000000000000000000000000")</returns>
-        public string GetMappingResultString(FOUPCtrl.WaferMap.MappingAnalysisResult analysisResult)
-        {
-            if (analysisResult?.WaferStatus == null)
-            {
-                Debug.WriteLine("GetMappingResultString: Analysis result or wafer status is null");
-                return "".PadLeft(25, '9'); // Return error status for all slots
-            }
-
-            var result = new System.Text.StringBuilder();
-
-            for (int i = 0; i < analysisResult.WaferStatus.Length; i++)
-            {
-                // Convert wafer status to single character using traditional switch statement
-                // 0 = Empty, 1 = Normal, 2 = Crossed, 3 = Thick, 4 = Thin, 5 = Position Error, 99 = Error
-                char statusChar;
-                switch (analysisResult.WaferStatus[i])
-                {
-                    case 0:
-                        statusChar = '0';  // Empty
-                        break;
-                    case 1:
-                        statusChar = '1';  // Normal
-                        break;
-                    case 2:
-                        statusChar = '2';  // Crossed
-                        break;
-                    case 3:
-                        statusChar = '3';  // Thick
-                        break;
-                    case 4:
-                        statusChar = '4';  // Thin
-                        break;
-                    case 5:
-                        statusChar = '5';  // Position Error
-                        break;
-                    case 99:
-                        statusChar = '9';  // Error
-                        break;
-                    default:
-                        statusChar = '9';  // Unknown - treat as error
-                        break;
-                }
-
-                result.Append(statusChar);
-            }
-
-            string mappingResult = result.ToString();
-            Debug.WriteLine($"Mapping result: {mappingResult}");
-            Debug.WriteLine($"GetMappingResult returning: '{mappingResult}' (Length: {mappingResult.Length})");
-
-            return mappingResult;
-        }
+        #endregion
     }
 }
