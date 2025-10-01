@@ -1,4 +1,8 @@
-﻿using Creden.Hardware.Cards;
+﻿//#if x64
+//using Creden.Hardware64.Cards;
+//#else
+//using Creden.Hardware.Cards;
+//#endif
 using Fate.Wpf.MVVM;
 using FoupControl;
 using FOUPCtrl;
@@ -134,6 +138,230 @@ namespace WPF_CardTest.ViewModels
         private int _selectedCardIndex = 0;
         private ObservableCollection<FOUP_Ctrl.IOBitStatus> _inputBits = new ObservableCollection<FOUP_Ctrl.IOBitStatus>();
         private ObservableCollection<FOUP_Ctrl.IOBitStatus> _outputBits = new ObservableCollection<FOUP_Ctrl.IOBitStatus>();
+        #endregion
+
+        #region LED Selection Properties
+        private bool _isPresenceSelected;
+        private bool _isPlacementSelected;
+        private bool _isStatus1Selected;
+        private bool _isStatus2Selected;
+        private bool _isStatus3Selected;
+        private bool _isStatus4Selected;
+        private bool _isLoadSelected;
+        private bool _isUnloadSelected;
+        private bool _isAlarmSelected;
+        private bool _isManualSW1Selected;
+        private bool _isManualSW2Selected;
+
+        public bool IsPresenceSelected
+        {
+            get => _isPresenceSelected;
+            set
+            {
+                if (SetProperty(ref _isPresenceSelected, value) && value)
+                {
+                    SelectedLedIndex = 0;
+                    ClearOtherLedSelections(0);
+                }
+            }
+        }
+
+        public bool IsPlacementSelected
+        {
+            get => _isPlacementSelected;
+            set
+            {
+                if (SetProperty(ref _isPlacementSelected, value) && value)
+                {
+                    SelectedLedIndex = 1;
+                    ClearOtherLedSelections(1);
+                }
+            }
+        }
+
+        public bool IsStatus1Selected
+        {
+            get => _isStatus1Selected;
+            set
+            {
+                if (SetProperty(ref _isStatus1Selected, value) && value)
+                {
+                    SelectedLedIndex = 2;
+                    ClearOtherLedSelections(2);
+                }
+            }
+        }
+
+        public bool IsStatus2Selected
+        {
+            get => _isStatus2Selected;
+            set
+            {
+                if (SetProperty(ref _isStatus2Selected, value) && value)
+                {
+                    SelectedLedIndex = 3;
+                    ClearOtherLedSelections(3);
+                }
+            }
+        }
+
+        public bool IsStatus3Selected
+        {
+            get => _isStatus3Selected;
+            set
+            {
+                if (SetProperty(ref _isStatus3Selected, value) && value)
+                {
+                    SelectedLedIndex = 4;
+                    ClearOtherLedSelections(4);
+                }
+            }
+        }
+
+        public bool IsStatus4Selected
+        {
+            get => _isStatus4Selected;
+            set
+            {
+                if (SetProperty(ref _isStatus4Selected, value) && value)
+                {
+                    SelectedLedIndex = 5;
+                    ClearOtherLedSelections(5);
+                }
+            }
+        }
+
+        public bool IsLoadSelected
+        {
+            get => _isLoadSelected;
+            set
+            {
+                if (SetProperty(ref _isLoadSelected, value) && value)
+                {
+                    SelectedLedIndex = 6;
+                    ClearOtherLedSelections(6);
+                }
+            }
+        }
+
+        public bool IsUnloadSelected
+        {
+            get => _isUnloadSelected;
+            set
+            {
+                if (SetProperty(ref _isUnloadSelected, value) && value)
+                {
+                    SelectedLedIndex = 7;
+                    ClearOtherLedSelections(7);
+                }
+            }
+        }
+
+        public bool IsAlarmSelected
+        {
+            get => _isAlarmSelected;
+            set
+            {
+                if (SetProperty(ref _isAlarmSelected, value) && value)
+                {
+                    SelectedLedIndex = 8;
+                    ClearOtherLedSelections(8);
+                }
+            }
+        }
+
+        public bool IsManualSW1Selected
+        {
+            get => _isManualSW1Selected;
+            set
+            {
+                if (SetProperty(ref _isManualSW1Selected, value) && value)
+                {
+                    SelectedLedIndex = 9;
+                    ClearOtherLedSelections(9);
+                }
+            }
+        }
+
+        public bool IsManualSW2Selected
+        {
+            get => _isManualSW2Selected;
+            set
+            {
+                if (SetProperty(ref _isManualSW2Selected, value) && value)
+                {
+                    SelectedLedIndex = 10;
+                    ClearOtherLedSelections(10);
+                }
+            }
+        }
+
+        private void ClearOtherLedSelections(int exceptIndex)
+        {
+            if (exceptIndex != 0) _isPresenceSelected = false;
+            if (exceptIndex != 1) _isPlacementSelected = false;
+            if (exceptIndex != 2) _isStatus1Selected = false;
+            if (exceptIndex != 3) _isStatus2Selected = false;
+            if (exceptIndex != 4) _isStatus3Selected = false;
+            if (exceptIndex != 5) _isStatus4Selected = false;
+            if (exceptIndex != 6) _isLoadSelected = false;
+            if (exceptIndex != 7) _isUnloadSelected = false;
+            if (exceptIndex != 8) _isAlarmSelected = false;
+            if (exceptIndex != 9) _isManualSW1Selected = false;
+            if (exceptIndex != 10) _isManualSW2Selected = false;
+
+            // Notify all properties
+            OnPropertyChanged(nameof(IsPresenceSelected));
+            OnPropertyChanged(nameof(IsPlacementSelected));
+            OnPropertyChanged(nameof(IsStatus1Selected));
+            OnPropertyChanged(nameof(IsStatus2Selected));
+            OnPropertyChanged(nameof(IsStatus3Selected));
+            OnPropertyChanged(nameof(IsStatus4Selected));
+            OnPropertyChanged(nameof(IsLoadSelected));
+            OnPropertyChanged(nameof(IsUnloadSelected));
+            OnPropertyChanged(nameof(IsAlarmSelected));
+            OnPropertyChanged(nameof(IsManualSW1Selected));
+            OnPropertyChanged(nameof(IsManualSW2Selected));
+        }
+        #endregion
+
+        #region LED Properties
+        private bool _ledPresenceOn;
+        private bool _ledPlacementOn;
+        private bool _ledStatus1On;
+        private bool _ledStatus2On;
+        private bool _ledStatus3On;
+        private bool _ledStatus4On;
+        private bool _ledLoadOn;
+        private bool _ledUnloadOn;
+        private bool _ledAlarmOn;
+        private bool _ledManualSW1On;
+        private bool _ledManualSW2On;
+
+        public bool LedPresenceOn { get => _ledPresenceOn; set => SetProperty(ref _ledPresenceOn, value); }
+        public bool LedPlacementOn { get => _ledPlacementOn; set => SetProperty(ref _ledPlacementOn, value); }
+        public bool LedStatus1On { get => _ledStatus1On; set => SetProperty(ref _ledStatus1On, value); }
+        public bool LedStatus2On { get => _ledStatus2On; set => SetProperty(ref _ledStatus2On, value); }
+        public bool LedStatus3On { get => _ledStatus3On; set => SetProperty(ref _ledStatus3On, value); }
+        public bool LedStatus4On { get => _ledStatus4On; set => SetProperty(ref _ledStatus4On, value); }
+        public bool LedLoadOn { get => _ledLoadOn; set => SetProperty(ref _ledLoadOn, value); }
+        public bool LedUnloadOn { get => _ledUnloadOn; set => SetProperty(ref _ledUnloadOn, value); }
+        public bool LedAlarmOn { get => _ledAlarmOn; set => SetProperty(ref _ledAlarmOn, value); }
+        public bool LedManualSW1On { get => _ledManualSW1On; set => SetProperty(ref _ledManualSW1On, value); }
+        public bool LedManualSW2On { get => _ledManualSW2On; set => SetProperty(ref _ledManualSW2On, value); }
+
+        private int _selectedLedIndex = 0;
+        public int SelectedLedIndex
+        {
+            get => _selectedLedIndex;
+            set => SetProperty(ref _selectedLedIndex, value);
+        }
+        #endregion
+
+        #region LED Commands
+        public ICommand LedOnCommand { get; set; }
+        public ICommand LedBlinkCommand { get; set; }
+        public ICommand LedOffCommand { get; set; }
         #endregion
 
         #region Properties - Connection Status
@@ -596,6 +824,9 @@ namespace WPF_CardTest.ViewModels
         public ICommand PollIOCommand { get; private set; }
         public ICommand OnCommand { get; set; }
         public ICommand OffCommand { get; set; }
+        public ICommand ElevatorMappingStartCommand { get; set; }
+        public ICommand ElevatorMappingEndCommand { get; set; }
+        public ICommand ResetErrorCommand { get; set; }
         #endregion
 
         #region Constructor & Initialization
@@ -661,6 +892,14 @@ namespace WPF_CardTest.ViewModels
             _cts = new CancellationTokenSource();
         }
 
+        private void InitializeLedCommands()
+        {
+            LedOnCommand = new RelayCommand(param => SetSelectedLedState(true), param => IsConnected);
+            LedBlinkCommand = new RelayCommand(param => StartSelectedLedBlink(), param => IsConnected);
+            LedOffCommand = new RelayCommand(param => SetSelectedLedState(false), param => IsConnected);
+        }
+
+        // Update the existing InitializeCommands() method to include:
         private void InitializeCommands()
         {
             CancellationToken token = _cts.Token;
@@ -670,6 +909,7 @@ namespace WPF_CardTest.ViewModels
             InitializeMappingCommands(token);
             InitializeSettingsCommands();
             InitializePIOCommands();
+            InitializeLedCommands(); // Add this line
         }
         #endregion
 
@@ -768,107 +1008,166 @@ namespace WPF_CardTest.ViewModels
 
         private void InitializeDeviceOperationCommands(CancellationToken token)
         {
-            // Create commands that are more responsive to property changes
             ClampCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.Clamp(_cts.Token), "Clamp"),
-                param => {
-                    bool canExecute = IsConnected && ClampEnabled;
-                    return canExecute;
-                });
+                param => CanExecuteOperations() && ClampEnabled);
 
             UnclampCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.Unclamp(_cts.Token), "Unclamp"),
-                param => {
-                    bool canExecute = IsConnected && UnclampEnabled;
-                    return canExecute;
-                });
+                param => CanExecuteOperations() && UnclampEnabled);
 
             LatchCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.Latch(_cts.Token), "Latch"),
-                param => IsConnected && LatchEnabled);
+                param => CanExecuteOperations() && LatchEnabled);
 
             UnlatchCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.Unlatch(_cts.Token), "Unlatch"),
-                param => IsConnected && UnlatchEnabled);
+                param => CanExecuteOperations() && UnlatchEnabled);
 
             ElevatorUpCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.ElevatorUp(_cts.Token), "Elevator Up"),
-                param => IsConnected && ElevatorUpEnabled);
+                param => CanExecuteOperations() && ElevatorUpEnabled);
 
             ElevatorDownCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.ElevatorDown(_cts.Token), "Elevator Down"),
-                param => IsConnected && ElevatorDownEnabled);
+                param => CanExecuteOperations() && ElevatorDownEnabled);
 
             DoorForwardCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.DoorForward(_cts.Token), "Door Forward"),
-                param => IsConnected && DoorForwardEnabled);
+                param => CanExecuteOperations() && DoorForwardEnabled);
 
             DoorBackwardCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.DoorBackward(_cts.Token), "Door Backward"),
-                param => IsConnected && DoorBackwardEnabled);
+                param => CanExecuteOperations() && DoorBackwardEnabled);
 
             DockForwardCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.DockForward(_cts.Token), "Dock Forward"),
-                param => IsConnected && DockForwardEnabled);
+                param => CanExecuteOperations() && DockForwardEnabled);
 
             DockBackwardCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.DockBackward(_cts.Token), "Dock Backward"),
-                param => IsConnected && DockBackwardEnabled);
+                param => CanExecuteOperations() && DockBackwardEnabled);
 
             MappingForwardCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.MappingForward(_cts.Token), "Mapping Forward"),
-                param => IsConnected && MappingForwardEnabled);
+                param => CanExecuteOperations() && MappingForwardEnabled);
 
             MappingBackwardCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.MappingBackward(_cts.Token), "Mapping Backward"),
-                param => IsConnected && MappingBackwardEnabled);
+                param => CanExecuteOperations() && MappingBackwardEnabled);
 
             VacuumOnCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.VacuumOn(_cts.Token), "Vacuum On"),
-                param => IsConnected && VacuumOnEnabled);
+                param => CanExecuteOperations() && VacuumOnEnabled);
 
             VacuumOffCommand = new RelayCommand(
                 param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.VacuumOff(_cts.Token), "Vacuum Off"),
-                param => IsConnected && VacuumOffEnabled);
+                param => CanExecuteOperations() && VacuumOffEnabled);
 
-            StartMotionCommand = new RelayCommand(async param => await ExecuteStartMotion(), param => IsConnected && !string.IsNullOrEmpty(Motion));
-            UpdateStatusCommand = new RelayCommand(param => _deviceManager.UpdateDeviceStatus(), param => IsConnected);
+            //ElevatorMappingStartCommand = new RelayCommand(
+            //    param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.ElevatorMappingStartPosition(_cts.Token), "Elevator Mapping Start"),
+            //    param => CanExecuteOperations());
 
-            OriginCommand = new RelayCommand(async param => await ExecuteOriginCommand(), param => IsConnected);
+            //ElevatorMappingEndCommand = new RelayCommand(
+            //    param => ExecuteDeviceOperationWithRefresh(() => _foupCtrl.ElevatorMappingEndPosition(_cts.Token), "Elevator Mapping End"),
+            //    param => CanExecuteOperations());
+
+            StartMotionCommand = new RelayCommand(
+                async param => await ExecuteStartMotion(),
+                param => CanExecuteOperations() && !string.IsNullOrEmpty(Motion));
+
+            UpdateStatusCommand = new RelayCommand(
+                param => _deviceManager.UpdateDeviceStatus(),
+                param => IsConnected);
+
+            OriginCommand = new RelayCommand(
+                async param => await ExecuteOriginCommand(),
+                param => CanExecuteOperations());
+
+            // Reset Error command should ALWAYS be available when connected (even with errors)
+            ResetErrorCommand = new RelayCommand(
+                param => ExecuteResetError(),
+                param => IsConnected);
         }
 
         private void ExecuteDeviceOperationWithRefresh(Func<bool> operation, string operationName)
         {
             try
             {
-                bool result = operation();
-                Status = result ? $"{operationName} command executed successfully." : $"{operationName} command failed.";
-
-                // IMPORTANT FIX: Force immediate status update after operation completion
-                if (result && IsConnected)
+                // Check for any errors that would block the operation
+                if (_foupCtrl.IsErrorExist())
                 {
-                    // Force immediate hardware status refresh
-                    Task.Run(async () =>
+                    // Get error details
+                    string errorInfo = !string.IsNullOrEmpty(_foupCtrl.ErrorMessage) ? _foupCtrl.ErrorMessage : "Unknown error";
+                    string errorCode = ""; // Get from FOUP_Ctrl if available
+
+                    if (_foupCtrl.m_status[0] == (char)MachineStatus.RecoverableError)
                     {
-                        // Give hardware time to settle
-                        await Task.Delay(100);
+                        string blockMessage = $"Cannot execute {operationName}: System has a recoverable error (A) that must be cleared first.\n\nError: {errorInfo}\n\nPlease use the 'Reset Error' button to clear the error before attempting any operations.";
+                        Status = blockMessage;
+                        MessageService.Show(blockMessage, "Operation Blocked - Recoverable Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                    else if (_foupCtrl.m_status[0] == (char)MachineStatus.UnrecoverableError)
+                    {
+                        string blockMessage = $"Cannot execute {operationName}: System has an unrecoverable error (E) that must be reset first.\n\nError: {errorInfo}\n\nPlease use the 'Reset Error' button to clear the error before attempting any operations.";
+                        Status = blockMessage;
+                        MessageService.Show(blockMessage, "Operation Blocked - Unrecoverable Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                        return;
+                    }
+                }
 
-                        // Update sensor status multiple times to ensure we get latest state
-                        _foupCtrl.UpdateSensorStatus();
-                        await Task.Delay(25);
-                        _foupCtrl.UpdateSensorStatus();
+                bool result = operation();
 
-                        // Update UI on main thread
-                        Application.Current.Dispatcher.Invoke(() =>
+                if (!result)
+                {
+                    // Operation failed - check if it was due to error blocking
+                    if (_foupCtrl.IsErrorExist())
+                    {
+                        string errorInfo = !string.IsNullOrEmpty(_foupCtrl.ErrorMessage) ? _foupCtrl.ErrorMessage : "Operation was blocked due to system error";
+                        Status = $"{operationName} blocked: {errorInfo}";
+
+                        // Show appropriate message based on error type
+                        if (_foupCtrl.m_status[0] == (char)MachineStatus.RecoverableError)
                         {
-                            ForceUIRefresh();
+                            MessageService.Show($"{operationName} was blocked due to a recoverable error.\n\n{errorInfo}\n\nPlease reset the error and try again.", "Operation Blocked", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        }
+                        else if (_foupCtrl.m_status[0] == (char)MachineStatus.UnrecoverableError)
+                        {
+                            MessageService.Show($"{operationName} was blocked due to an unrecoverable error.\n\n{errorInfo}\n\nPlease reset the error and try again.", "Operation Blocked", MessageBoxButton.OK, MessageBoxImage.Error);
+                        }
+                    }
+                    else
+                    {
+                        Status = $"{operationName} command failed.";
+                    }
+                }
+                else
+                {
+                    Status = $"{operationName} command executed successfully.";
+
+                    // Force immediate status update after successful operation
+                    if (IsConnected)
+                    {
+                        Task.Run(async () =>
+                        {
+                            await Task.Delay(100);
+                            _foupCtrl.UpdateSensorStatus();
+                            await Task.Delay(25);
+                            _foupCtrl.UpdateSensorStatus();
+
+                            Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                ForceUIRefresh();
+                            });
                         });
-                    });
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Status = $"{operationName} command error: {ex.Message}";
+                MessageService.Show($"Error during {operationName} operation: {ex.Message}", $"{operationName} Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1094,32 +1393,21 @@ namespace WPF_CardTest.ViewModels
 
             int sequenceType = Settings.Instance.CurrentProfile.FOUPTypeIndex;
             string sequenceName = SequenceOptions[sequenceType];
-            LogMessage($"Executing {Motion} with {sequenceName} sequence (Type: {sequenceType})");
 
             Status = $"Executing {Motion} with {sequenceName} sequence...";
 
             try
             {
-                switch (Motion)
+                // **NEW: Delegate to FOUP_Ctrl instead of handling locally**
+                bool success = await _foupCtrl.ExecuteStartMotion(Motion, sequenceType, Settings.Instance, _cts.Token);
+
+                if (success)
                 {
-                    case "Load":
-                        await ExecuteSequenceOperation(sequenceType, OperationType.Load);
-                        break;
-                    case "Unload":
-                        await ExecuteSequenceOperation(sequenceType, OperationType.Unload);
-                        break;
-                    case "Load (map)":
-                        await ExecuteUnifiedMappingOperation(sequenceType, sequenceName, OperationType.Load);
-                        break;
-                    case "Unload (map)":
-                        await ExecuteUnifiedMappingOperation(sequenceType, sequenceName, OperationType.Unload);
-                        break;
-                    case "MAP ACAL":
-                        await ExecuteMappingAutoCalibration();
-                        break;
-                    default:
-                        Status = $"Unknown motion command: {Motion}";
-                        break;
+                    Status = $"{Motion} operation completed successfully";
+                }
+                else
+                {
+                    Status = $"{Motion} operation failed: {_foupCtrl.ErrorMessage}";
                 }
             }
             catch (OperationCanceledException)
@@ -1129,97 +1417,8 @@ namespace WPF_CardTest.ViewModels
             catch (Exception ex)
             {
                 Status = $"Error during {Motion} operation: {ex.Message}";
-                MessageBox.Show($"An error occurred during the {Motion} operation: {ex.Message}", $"{Motion} Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private async Task ExecuteSequenceOperation(int sequenceType, OperationType operationType)
-        {
-            var steps = _foupCtrl.GetSequenceSteps((FOUP_Ctrl.SequenceType)sequenceType, operationType);
-            bool success = true;
-
-            foreach (var step in steps)
-            {
-                if (!step.Operation(_cts.Token))
-                {
-                    success = false;
-                    break;
-                }
-            }
-
-            string operationName = operationType.ToString();
-            Status = success ? $"{operationName} sequence completed" : $"{operationName} sequence failed: {_foupCtrl.ErrorMessage}";
-        }
-
-        private async Task ExecuteUnifiedMappingOperation(int sequenceType, string sequenceName, OperationType operationType)
-        {
-            var progress = new Progress<string>(msg => Status = msg);
-            bool success;
-
-            if (operationType == OperationType.Load)
-            {
-                success = await _foupCtrl.ExecuteUnifiedLoadMappingSequence(_cts.Token, Settings.Instance, (SequenceType)sequenceType, operationType, progress);
-            }
-            else
-            {
-                success = await _foupCtrl.ExecuteUnifiedUnloadMappingSequence(_cts.Token, Settings.Instance, (SequenceType)sequenceType, operationType, progress);
-            }
-
-            string operationName = operationType == OperationType.Load ? "Load (map)" : "Unload (map)";
-
-            if (success)
-            {
-                if (operationType == OperationType.Load)
-                {
-                    var analysisResult = _foupCtrl.GetLastMappingAnalysisResult();
-                    if (analysisResult != null)
-                    {
-                        UpdateMappingResults(analysisResult);
-                        Status = $"{operationName} for {sequenceName} completed - {analysisResult.DetectedWaferCount} wafers detected";
-                    }
-                    else
-                    {
-                        Status = $"{operationName} for {sequenceName} completed";
-                    }
-                }
-                else
-                {
-                    Status = $"{operationName} for {sequenceName} completed successfully";
-                }
-            }
-            else
-            {
-                Status = $"{operationName} failed: {_foupCtrl.ErrorMessage}";
-            }
-        }
-
-        private async Task ExecuteMappingAutoCalibration()
-        {
-            Status = "Starting Auto Calibration...";
-            var result = await _mappingService.ExecuteMappingAutoCalibration(_cts.Token, Settings.Instance, LogMessage);
-
-            if (result.Success)
-            {
-                Status = "Auto Calibration completed successfully";
-
-                switch (Settings.Instance.ActiveMappingType)
-                {
-                    case 1: Type1CalibrationCompleted = true; break;
-                    case 2: Type2CalibrationCompleted = true; break;
-                    case 3: Type3CalibrationCompleted = true; break;
-                    case 4: Type4CalibrationCompleted = true; break;
-                    case 5: Type5CalibrationCompleted = true; break;
-                }
-
-                UpdateTypeSelection(Settings.Instance.ActiveMappingType);
-                UpdateCalibrationStatus();
-
-                MessageBox.Show($"Auto Calibration Successful!\n\nWafers Detected: {result.WaferCount}\nSlot 1 Position: {result.Slot1Position:F3}mm (SAVED)\nAverage Pitch: {Math.Abs(result.AvgPitch):F3}mm (SAVED)\nAverage Thickness: {result.AvgThickness:F3}mm\n\nValues have been saved to Mapping Type {Settings.Instance.ActiveMappingType}.", "Auto Calibration Complete", MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            else
-            {
-                Status = "Auto calibration failed";
-                MessageBox.Show($"Auto calibration failed: {result.ErrorMessage}", "Auto Calibration Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show($"An error occurred during the {Motion} operation: {ex.Message}",
+                               $"{Motion} Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1228,6 +1427,7 @@ namespace WPF_CardTest.ViewModels
             Status = "Moving elevator to origin position...";
             try
             {
+                // **This is already delegating to FOUP_Ctrl - no change needed**
                 bool success = await _foupCtrl.ExecuteOriginCommand(_cts.Token);
                 if (success)
                 {
@@ -1236,13 +1436,15 @@ namespace WPF_CardTest.ViewModels
                 else
                 {
                     Status = _foupCtrl.ErrorMessage ?? "Failed to reach elevator origin position.";
-                    MessageBox.Show(_foupCtrl.ErrorMessage ?? "Failed to reach elevator origin position.", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    MessageBox.Show(_foupCtrl.ErrorMessage ?? "Failed to reach elevator origin position.",
+                                   "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
                 Status = "Error during origin operation.";
-                MessageBox.Show($"Error during origin operation: {ex.Message}", "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"Error during origin operation: {ex.Message}",
+                               "Origin Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -1517,6 +1719,76 @@ namespace WPF_CardTest.ViewModels
             temp = OutputBits;
             OutputBits = null;
             OutputBits = temp;
+        }
+
+        private void ExecuteResetError()
+        {
+            try
+            {
+                // Check current error state
+                bool hadRecoverableError = _foupCtrl.m_status[0] == (char)MachineStatus.RecoverableError;
+                bool hadUnrecoverableError = _foupCtrl.m_status[0] == (char)MachineStatus.UnrecoverableError;
+
+                if (!_foupCtrl.IsErrorExist())
+                {
+                    Status = "No errors to reset - System is already in normal state";
+                    MessageService.Show("No errors detected. The system is already in normal operation state.", "No Errors", MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                string errorBeforeReset = _foupCtrl.ErrorMessage ?? "Unknown error";
+
+                bool resetSuccess = _foupCtrl.ResetError();
+
+                if (resetSuccess)
+                {
+                    if (hadRecoverableError)
+                    {
+                        Status = "Recoverable error successfully cleared - Normal operations can now proceed";
+                        MessageService.Show($"Recoverable error has been successfully cleared.\n\nPrevious error: {errorBeforeReset}\n\nAll FOUP operations are now available.", "Error Reset Successful", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else if (hadUnrecoverableError)
+                    {
+                        Status = "Unrecoverable error successfully reset - Normal operations can now proceed";
+                        MessageService.Show($"Unrecoverable error has been successfully reset.\n\nPrevious error: {errorBeforeReset}\n\nAll FOUP operations are now available.", "Error Reset Successful", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        Status = "Error reset completed successfully";
+                    }
+
+                    // Force immediate status update after reset
+                    Task.Run(async () =>
+                    {
+                        await Task.Delay(200);
+                        _foupCtrl.UpdateSensorStatus();
+
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ForceUIRefresh();
+                            Status = "Error reset completed - Status refreshed";
+                        });
+                    });
+                }
+                else
+                {
+                    Status = $"Error reset failed: {_foupCtrl.ErrorMessage}";
+                    MessageService.Show(
+                        $"Error reset failed: {_foupCtrl.ErrorMessage}\n\nThe system may still be in an error state. Please check hardware connections and try again.",
+                        "Reset Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"Exception during reset: {ex.Message}";
+                MessageService.Show(
+                    $"Exception during error reset: {ex.Message}",
+                    "Reset Exception",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
         }
         #endregion
 
@@ -1841,5 +2113,139 @@ namespace WPF_CardTest.ViewModels
         //    public string Configuration { get; set; }
         //}
         #endregion
+
+        #region LED Control Methods
+        private void SetSelectedLedState(bool state)
+        {
+            if (!IsConnected) return;
+
+            try
+            {
+                // Map the selected radio button index to the corresponding LED bit
+                int ledBit = GetLedBitFromSelection();
+                if (ledBit == -1)
+                {
+                    Status = "Invalid LED selection";
+                    return;
+                }
+
+                // Set the specific LED bit on Card 2 (index 1)
+                bool success = _foupCtrl.SetIOBit(1, ledBit, state);
+
+                if (success)
+                {
+                    // Update the corresponding property
+                    UpdateLedProperty(ledBit, state);
+                    string ledName = GetLedNameFromBit(ledBit);
+                    Status = $"{ledName} LED turned {(state ? "ON" : "OFF")}";
+                }
+                else
+                {
+                    Status = $"Failed to control LED: {_foupCtrl.ErrorMessage}";
+                }
+            }
+            catch (Exception ex)
+            {
+                Status = $"LED control error: {ex.Message}";
+            }
+        }
+
+        private async void StartSelectedLedBlink()
+        {
+            if (!IsConnected) return;
+
+            try
+            {
+                int ledBit = GetLedBitFromSelection();
+                if (ledBit == -1)
+                {
+                    Status = "Invalid LED selection";
+                    return;
+                }
+
+                string ledName = GetLedNameFromBit(ledBit);
+                Status = $"{ledName} LED blinking...";
+
+                // Blink pattern: on for 500ms, off for 500ms, repeat 5 times
+                for (int i = 0; i < 5; i++)
+                {
+                    _foupCtrl.SetIOBit(1, ledBit, true);
+                    UpdateLedProperty(ledBit, true);
+                    await Task.Delay(500);
+
+                    _foupCtrl.SetIOBit(1, ledBit, false);
+                    UpdateLedProperty(ledBit, false);
+                    await Task.Delay(500);
+                }
+
+                Status = $"{ledName} LED blink completed";
+            }
+            catch (Exception ex)
+            {
+                Status = $"LED blink error: {ex.Message}";
+            }
+        }
+
+        private int GetLedBitFromSelection()
+        {
+            // Map radio button selection to Card 2 LED output bits (0-6 based on your FOUP_Ctrl)
+            switch (SelectedLedIndex)
+            {
+                case 0: return 0;  // LED - PRESENCE
+                case 1: return 1;  // LED - PLACEMENT  
+                case 2: return 2;  // LED - STATUS 1
+                case 3: return 3;  // LED - STATUS 2
+                case 4: return 4;  // LED - STATUS 3 (if available)
+                case 5: return 5;  // LED - STATUS 4 (if available)
+                case 6: return 4;  // LED - LOAD (mapped to bit 4)
+                case 7: return 5;  // LED - UNLOAD (mapped to bit 5)
+                case 8: return 6;  // LED - ALARM
+                case 9: return 7;  // Manual SW 1 (if available)
+                case 10: return 8; // Manual SW 2 (if available)
+                default: return -1;
+            }
+        }
+
+        private void UpdateLedProperty(int ledBit, bool state)
+        {
+            // Update the corresponding LED property based on the bit
+            switch (ledBit)
+            {
+                case 0: LedPresenceOn = state; break;
+                case 1: LedPlacementOn = state; break;
+                case 2: LedStatus1On = state; break;
+                case 3: LedStatus2On = state; break;
+                case 4: LedLoadOn = state; break;
+                case 5: LedUnloadOn = state; break;
+                case 6: LedAlarmOn = state; break;
+                case 7: LedManualSW1On = state; break;
+                case 8: LedManualSW2On = state; break;
+            }
+        }
+
+        private string GetLedNameFromBit(int ledBit)
+        {
+            switch (ledBit)
+            {
+                case 0: return "Presence";
+                case 1: return "Placement";
+                case 2: return "Status 1";
+                case 3: return "Status 2";
+                case 4: return "Load";
+                case 5: return "Unload";
+                case 6: return "Alarm";
+                case 7: return "Manual SW 1";
+                case 8: return "Manual SW 2";
+                default: return "Unknown";
+            }
+        }
+        #endregion
+
+        // Add a method to check if operations should be enabled based on error state
+        private bool CanExecuteOperations()
+        {
+            // Only allow operations if no errors exist
+            return IsConnected && !_foupCtrl.IsErrorExist();
+        }
     }
 }
